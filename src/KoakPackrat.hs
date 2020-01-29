@@ -130,7 +130,7 @@ data Primary = Identifier String | PrimaryLiteral Literal | PrimaryExpressions E
 data Literal = LiteralInt Int | LiteralFloat Float
 
 {--                   --}
-
+{--
 instance Show Stmt where
   show (Stmt kdefs) = "{stmt: {kdefs: " ++ show kdefs ++ "}}"
 
@@ -188,6 +188,70 @@ instance Show BinOp where
   show Equal = "equal"
   show NotEqual = "notEqual"
   show Assignment = "assignment"
+--}
+
+instance Show Stmt where
+  show (Stmt kdefs) = "file:\n" ++ show kdefs
+
+instance Show Kdefs where
+  show (Defs proto exprs) = "def:\n" ++ show proto ++ "\ninstructions:\n" ++ show exprs ++ "\n"
+  show (KExpressions exprs) = "instructions:\n" ++ show exprs ++ "\n"
+
+instance Show Prototype where
+  show (Prototype name args return) = show name ++ ":\n\targs: " ++ show args ++ "\n\ttype: " ++ show return
+
+instance Show Expressions where
+  show (ForExpr init condition increment expressions) = "for:\n\tinit: " ++ show init ++ "\n\tcondition: " ++ show condition ++ "\n\tincrement: " ++ show increment ++ "\n\tinstructions: " ++ show expressions ++ "\n"
+  show (IfExpr cond exprs elseExprs) = "if:\n\tcondition: " ++ show cond ++ "\n\tinstructions: " ++ show exprs ++ "\n\telse_instructions: " ++ show elseExprs ++ "\n"
+  show (WhileExpr cond exprs) = "while:\n\tcondition: " ++ show cond ++ "\n\tinstructions: " ++ show exprs ++ "\n"
+  show (Expr exprs) = show exprs ++ "\n"
+
+instance Show Expression where
+  show (Expression (Postfix primary _) ((BinaryOperation binop (UnaryExprUnary (Postfix primaryOne _))):[])) = show binop ++ ": (" ++ show primaryOne ++ ", " ++ show primary ++ ")"
+  show (Expression exprUnary []) = show exprUnary
+  show (Expression exprUnary binops) = show exprUnary ++ show binops 
+
+instance Show BinaryOperation where
+  show (BinaryOperation binop (UnaryExprUnary (Postfix primary _))) = show binop ++ ": " ++ show primary
+  show (BinaryOperation binop unaryExpr) = show binop ++ ": " ++ show unaryExpr
+
+instance Show UnaryExpr where
+  show (UnaryExprUnary unary) = show unary
+  show (UnaryExprExpression expr) = show expr
+
+instance Show UnaryPostfix where
+  show (Unary op unary) = "(" ++ show op ++ ", " ++ show unary ++ ")"
+  show (Postfix primary (Just callExpr)) = show primary ++ ": " ++ show callExpr
+  show (Postfix primary Nothing) = show primary
+
+instance Show Primary where
+  show (Identifier str) = show str
+  show (PrimaryLiteral lit) = show lit
+  show (PrimaryExpressions exp) = show exp
+
+instance Show Literal where
+  show (LiteralInt i) = show i
+  show (LiteralFloat f) = show f
+
+instance Show Type where
+  show Int = "int"
+  show Double = "double"
+  show Void = "void"
+
+instance Show UnOp where
+  show Not = "not"
+  show Minus = "minus"
+
+instance Show BinOp where
+  show Multiplication = "*"
+  show Division = "/"
+  show Addition = "+"
+  show Substraction = "-"
+  show LessThan = "<"
+  show GreaterThan = ">"
+  show Equal = "=="
+  show NotEqual = "!="
+  show Assignment = "="
 
 {--                   --}
 
