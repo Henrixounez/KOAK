@@ -8,12 +8,10 @@
 BINPATH = stack path --local-install-root
 
 all:
-		stack build;\
-		cp koak-exe koak
+		stack build
 
 tests_run:	all
-		stack test;
-		cp ./koak-exe ./test/koak && cd test && ./tester.sh
+		stack test
 
 clean:
 		$(RM) koak
