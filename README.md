@@ -82,4 +82,18 @@ You may launch every tests with `make tests` or `stack test`
 
 You an also test specific modules by using `stack test` followed by the name of the module
 
-`$ stack test :module_name` will launch the module_name tests. 
+`$ stack test :module_name` will launch the module_name tests.
+
+
+## Run with kabal
+first you have to make sure that ghc is installed : 
+```
+$ ghc --version
+The Glorious Glasgow Haskell Compilation System, version 8.6.5
+```
+if not : `curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh`
+
+then you have to configure your environement, add a new path to your `$PATH` env varable :
+`$PATH:$HOME/.ghcup/bin`
+
+Finally if all is ok, you can now run with cabal !
