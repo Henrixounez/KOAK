@@ -256,7 +256,7 @@ instance Show BinOp where
 {--                   --}
 
 data Result v = Parsed v Derivs
-              | NoParse
+              | NoParse String
 
 data Derivs = Derivs {
   dvStmt                :: Result [Kdefs],
@@ -311,7 +311,7 @@ data Derivs = Derivs {
 eval :: String -> Maybe Stmt
 eval s = case dvStmt (parse s) of
   Parsed v rem -> (Just (Stmt v))
-  _ -> Nothing
+  NoParse err -> trace err Nothing
 
 parse :: String -> Derivs
 parse s = d where

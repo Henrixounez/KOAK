@@ -3,3 +3,5 @@ koak.cabal
 *~
 koak-exe
 koak
+dist-newstyle
+cabal.project.local

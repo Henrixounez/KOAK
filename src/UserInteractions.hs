@@ -26,3 +26,4 @@ handleArgs = do
         _ -> do
             flagValue <- handleFlags args
             return (head args, flagValue)
+
