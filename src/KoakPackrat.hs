@@ -5,12 +5,12 @@ import Debug.Trace
 
 {--
 stmt                := _* kdefs* #eof
-kdefs               := ( 'def' defs | expressions ) ';' _*
+kdefs               := ( defStr defs | extern | expressions ) ';' _*
 defStr              := 'def'
 defs                := prototype _* expressions
 prototype           := _* prototype_start _* prototype_args
 prototype_start     := ( unaryStr . decimal_const?
-                       | binaryStr . decimal_const?
+                       | binaryStr . decimal_const? //TODO
                        | identifier )
 unaryStr            := 'unary'
 binaryStr           := 'binary'
@@ -18,9 +18,12 @@ prototype_args      := '(' args_list ')' _* ':' type
 args_list           := (identifier ':' type)*
 type                := _* (intStr | doubleStr | voidStr) _*
 
+extern              := externStr identifier prototype_args
+
 intStr              := 'int'
 doubleStr           := 'double'
-voidStr             := 'void1
+voidStr             := 'void'
+externStr           := 'extern'
 
 expressions         := _* (for_expr
                      | if_expr
@@ -66,8 +69,10 @@ char                := .
 
 -- test = "def test(x : double):double x + 2.0;"
 
+-- test = "extern cos(x : double):double;"
 
 test = "\
+\extern cos(x : double):double;\
 \def test(x : double):double x + 2.0;\
 \test (5.0) - 2 * 3 + 1;\
 \"
@@ -83,6 +88,10 @@ data Stmt = Stmt {
 data Kdefs = Defs {
   prototype       :: Prototype,
   defExpressions  :: Expressions
+} | Extern {
+  externName      :: String,
+  externArgs      :: [(Primary, Type)],
+  externReturn    :: Type
 } | KExpressions Expressions
 
 data Prototype = Prototype {
@@ -195,6 +204,7 @@ instance Show Stmt where
 
 instance Show Kdefs where
   show (Defs proto exprs) = "def:\n" ++ show proto ++ "\ninstructions:\n" ++ show exprs ++ "\n"
+  show (Extern name args return) = "extern: " ++ show name ++ "\n\targs: " ++ show args ++ "\n\ttype: " ++ show return
   show (KExpressions exprs) = "instructions:\n" ++ show exprs ++ "\n"
 
 instance Show Prototype where
@@ -270,9 +280,11 @@ data Derivs = Derivs {
   dvPrototypeArgs       :: Result ([(Primary, Type)], Type),
   dvArgsList            :: Result [(Primary, Type)],
   dvType                :: Result Type,
+  dvExtern              :: Result Kdefs,
   dvIntStr              :: Result String,
   dvDoubleStr           :: Result String,
   dvVoidStr             :: Result String,
+  dvExternStr           :: Result String,
   dvExpressions         :: Result Expressions,
   dvExprConcat          :: Result [Expression],
   dvForExpr             :: Result Expressions,
@@ -315,7 +327,7 @@ eval s = case dvStmt (parse s) of
 
 parse :: String -> Derivs
 parse s = d where
-    d             = Derivs stmt kdefs defStr defs prototype prototypeS unaryStr binaryStr prototypeArgs argsList types intStr doubleStr voidStr expressions exprConcat forExpr ifExpr elseExpr whileExpr forStr inStr ifStr thenStr elseStr whileStr doStr expression binaryOps unary postFix callExpr exprList primary identifier identifierC dot decimalConst decimalConstC doubleConst literal whitespace unop binop char
+    d             = Derivs stmt kdefs defStr defs prototype prototypeS unaryStr binaryStr prototypeArgs argsList types extern intStr doubleStr voidStr externStr expressions exprConcat forExpr ifExpr elseExpr whileExpr forStr inStr ifStr thenStr elseStr whileStr doStr expression binaryOps unary postFix callExpr exprList primary identifier identifierC dot decimalConst decimalConstC doubleConst literal whitespace unop binop char
     stmt          = pStmt d
     kdefs         = pKdefs d
     defStr        = pDefStr d
@@ -327,9 +339,11 @@ parse s = d where
     prototypeArgs = pPrototypeArgs d
     argsList      = pArgsList d
     types         = pType d
+    extern        = pExtern d
     intStr        = pIntStr d
     doubleStr     = pDoubleStr d
     voidStr       = pVoidStr d
+    externStr     = pExternStr d
     expressions   = pExpressions d
     exprConcat    = pExprConcat d
     forExpr       = pForExpr d
@@ -385,12 +399,16 @@ pKdefs d = case dvDefStr d of
         Parsed _ d4 -> Parsed defs d4
       _ -> NoParse
     _ -> NoParse
-  _ -> case dvExpressions d of
-    Parsed exprs d1 -> case dvChar d1 of
+  _ -> case dvExtern d of
+    Parsed extern d1 -> case dvChar d1 of
       Parsed ';' d2 -> case dvWhitespace d2 of
-        Parsed _ d3 -> Parsed (KExpressions exprs) d3
+        Parsed _ d3 -> Parsed extern d3
+    _ -> case dvExpressions d of
+      Parsed exprs d1 -> case dvChar d1 of
+        Parsed ';' d2 -> case dvWhitespace d2 of
+          Parsed _ d3 -> Parsed (KExpressions exprs) d3
+        _ -> NoParse
       _ -> NoParse
-    _ -> NoParse
 
 pDefStr :: Derivs -> Result String
 pDefStr d = case dvChar d of
@@ -499,6 +517,15 @@ pType d = case dvWhitespace d of
           Parsed _ d3 -> Parsed Void d3
         _ -> NoParse
 
+pExtern :: Derivs -> Result Kdefs
+pExtern d = case dvExternStr d of
+  Parsed _ d1 -> case dvIdentifier d1 of
+    Parsed (Identifier id) d2 -> case dvPrototypeArgs d2 of
+      Parsed (args, return) d3 -> Parsed (Extern id args return) d3
+      _ -> NoParse
+    _ -> NoParse
+  _ -> NoParse
+
 pIntStr :: Derivs -> Result String
 pIntStr d = case dvChar d of
   Parsed 'i' d1 -> case dvChar d1 of
@@ -532,7 +559,22 @@ pVoidStr d = case dvChar d of
         _ -> NoParse
       _ -> NoParse
     _ -> NoParse
-  _ -> NoParse 
+  _ -> NoParse
+
+pExternStr :: Derivs -> Result String
+pExternStr d = case dvChar d of
+  Parsed 'e' d1 -> case dvChar d1 of
+    Parsed 'x' d2 -> case dvChar d2 of
+      Parsed 't' d3 -> case dvChar d3 of
+        Parsed 'e' d4 -> case dvChar d4 of
+          Parsed 'r' d5 -> case dvChar d5 of
+            Parsed 'n' d6 -> Parsed "extern" d6
+            _ -> NoParse
+          _ -> NoParse
+        _ -> NoParse
+      _ -> NoParse
+    _ -> NoParse
+  _ -> NoParse
 
 pExpressions :: Derivs -> Result Expressions
 pExpressions d = case dvWhitespace d of
@@ -722,6 +764,7 @@ pPostfix d = case dvWhitespace d of
         Parsed ce d4 -> Parsed (Postfix pr (Just ce)) d4
         _ -> Parsed (Postfix pr Nothing) d3
       _ -> NoParse
+    _ -> NoParse
  
 pCallExpr :: Derivs -> Result [Expression]
 pCallExpr d = case dvChar d of
