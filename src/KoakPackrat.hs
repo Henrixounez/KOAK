@@ -266,7 +266,7 @@ instance Show BinOp where
 {--                   --}
 
 data Result v = Parsed v Derivs
-              | NoParse String
+              | NoParse
 
 data Derivs = Derivs {
   dvStmt                :: Result [Kdefs],
@@ -323,7 +323,7 @@ data Derivs = Derivs {
 eval :: String -> Maybe Stmt
 eval s = case dvStmt (parse s) of
   Parsed v rem -> (Just (Stmt v))
-  NoParse err -> trace err Nothing
+  NoParse -> Nothing
 
 parse :: String -> Derivs
 parse s = d where
@@ -426,6 +426,7 @@ pDefs d = case dvPrototype d of
       Parsed exprs d3 -> Parsed (Defs proto exprs) d3
       _ -> NoParse
     _ -> NoParse
+  _ -> NoParse
 
 pPrototype :: Derivs -> Result Prototype
 pPrototype d = case dvWhitespace d of
@@ -745,13 +746,14 @@ pBinaryOperations d = case dvWhitespace d of
           Parsed bops d4 -> Parsed ((BinaryOperation bn (UnaryExprExpression expr)):bops) d4
           _ -> NoParse
         _ -> NoParse
-    _ -> Parsed [] d1
+    _ -> (Parsed [] d1)
 
 pUnary :: Derivs -> Result UnaryPostfix
 pUnary d = case dvWhitespace d of
   Parsed _ d1 -> case dvUnop d1 of
     Parsed unp d2 -> case dvUnary d2 of
       Parsed un d3 -> Parsed (Unary unp un) d3
+      _ -> NoParse
     _ -> case dvPostfix d1 of
       Parsed ps d2 -> Parsed ps d2
       _ -> NoParse

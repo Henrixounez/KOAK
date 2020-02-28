@@ -1,7 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 module Codegen where
+
+-- {-# LANGUAGE OverloadedStrings #-}
+-- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{--
 
 import Data.Word
 import Data.String
@@ -273,3 +274,4 @@ cbr cond tr fl = terminator $ Do $ CondBr cond tr fl []
 
 ret :: Operand -> Codegen (Named Terminator)
 ret val = terminator $ Do $ Ret (Just val) []
+--}

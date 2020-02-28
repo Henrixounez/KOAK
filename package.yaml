@@ -23,9 +23,15 @@ dependencies:
 - base >= 4.7 && < 5
 - llvm-hs
 - llvm-hs-pure
+- container
+- containers
+- mtl
 
 library:
   source-dirs: src
+  default-extensions:
+    - OverloadedStrings
+    - GeneralizedNewtypeDeriving
 
 executables:
   koak:

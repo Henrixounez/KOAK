@@ -1,4 +1,4 @@
-def test(x : double): double
+def test(x : double y : double): double
     x + 2.0;
 
 test (5.0) - 2 * 3 + 1;

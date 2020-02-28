@@ -5,19 +5,47 @@
 
 packages:
 - completed:
-    hackage: llvm-hs-9.0.0@sha256:b036b8d3a78607310382f82b7c5303ffc31afb9735875bb64521501144cc5728,8700
+    hackage: llvm-hs-7.0.0@sha256:51006d5e8b7926d55a157db0f1892a5463c14781f9cf57e3b11fe17d07f457d3,8588
     pantry-tree:
-      size: 13599
-      sha256: d572dd639dd315c94eccdfd9b10a3c266163cf945778141087a003c1ed836a91
+      size: 13394
+      sha256: e7eedda9e076acf222097a449ffd08703b3298fd091065c7d5360017684d8f65
   original:
-    hackage: llvm-hs-9.0.0
+    hackage: llvm-hs-7.0.0
 - completed:
-    hackage: llvm-hs-pure-9.0.0@sha256:134779f40086a366279f678e670b610d7a7618b28dd43f65894078fd20e04629,2945
+    hackage: llvm-hs-pure-7.0.0@sha256:054c145a345bccdad6205420832eae36e3ed4730fad9767fb153d4487d240727,2931
     pantry-tree:
       size: 2600
-      sha256: f1a83aa959b69b72342997fc4fdc352086bc3b9f306cfb6a4c8bbc850d36b4fb
+      sha256: 11e9eb61035f203f0d037358bef49fc885d8a25045dc1080f7b6b1695c92325b
   original:
-    hackage: llvm-hs-pure-9.0.0
+    hackage: llvm-hs-pure-7.0.0
+- completed:
+    hackage: container-1.1.6@sha256:95436896b18c970f8058f555a287909280e1e59c799dcc06ed4eedd51c95e88b,1751
+    pantry-tree:
+      size: 294
+      sha256: 9d71fc172ac49f4369f5dd21695cf0830df8c07a6102d9ca0fc8c690175d6e5a
+  original:
+    hackage: container-1.1.6
+- completed:
+    hackage: convert-1.5.1@sha256:ae5e236caa15a2aa30568ab1766a944d30d5a864253d1a4d595c3117b9b42efe,2362
+    pantry-tree:
+      size: 1448
+      sha256: fa5bb2667f1e9d283b5594f9331882c66890860b2c77fb6e97a6a8114b82ea3d
+  original:
+    hackage: convert-1.5.1
+- completed:
+    hackage: impossible-1.1.4@sha256:99009328a5c0c0eebd395c89504c8618480018deac57dde8e0380358e1c86603,1871
+    pantry-tree:
+      size: 172
+      sha256: 81ced877bc5a3a9d7181d8688517aa324b5055f8efc0376150f3072e7157d1ed
+  original:
+    hackage: impossible-1.1.4
+- completed:
+    hackage: mtl-2.2.2@sha256:1050fb71acd9f5d67da7d992583f5bd0eb14407b9dc7acc122af1b738b706ca3,2261
+    pantry-tree:
+      size: 1713
+      sha256: b8bdc2259e2f943a7252fb164805666fe108ac959d398e0af27b43ba2ebc241c
+  original:
+    hackage: mtl-2.2.2
 snapshots:
 - completed:
     size: 524162
