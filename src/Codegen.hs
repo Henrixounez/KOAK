@@ -2,7 +2,6 @@ module Codegen where
 
 -- {-# LANGUAGE OverloadedStrings #-}
 -- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{--
 
 import Data.Word
 import Data.String
@@ -24,6 +23,13 @@ import qualified LLVM.AST.CallingConvention as CC
 import qualified LLVM.AST.FloatingPointPredicate as FP
 import qualified LLVM.AST.Instruction as I
 
+import qualified Data.ByteString.UTF8 as UTF8
+import qualified Data.ByteString.Short as SB
+import Data.ByteString.Short.Internal
+
+toShortString :: String -> Data.ByteString.Short.Internal.ShortByteString
+toShortString s = SB.toShort (UTF8.fromString s)
+
 -------------------------------------------------------------------------------
 -- Module Level
 -------------------------------------------------------------------------------
@@ -35,7 +41,7 @@ runLLVM :: AST.Module -> LLVM a -> AST.Module
 runLLVM mod (LLVM m) = execState m mod
 
 emptyModule :: String -> AST.Module
-emptyModule label = defaultModule { moduleName = label }
+emptyModule label = defaultModule { moduleName = (toShortString label) }
 
 addDefn :: Definition -> LLVM ()
 addDefn d = do
@@ -45,7 +51,7 @@ addDefn d = do
 define ::  Type -> String -> [(Type, Name)] -> [BasicBlock] -> LLVM ()
 define retty label argtys body = addDefn $
   GlobalDefinition $ functionDefaults {
-    name        = Name label
+    name        = Name (toShortString label)
   , parameters  = ([Parameter ty nm [] | (ty, nm) <- argtys], False)
   , returnType  = retty
   , basicBlocks = body
@@ -54,7 +60,7 @@ define retty label argtys body = addDefn $
 external ::  Type -> String -> [(Type, Name)] -> LLVM ()
 external retty label argtys = addDefn $
   GlobalDefinition $ functionDefaults {
-    name        = Name label
+    name        = Name (toShortString label)
   , linkage     = L.External
   , parameters  = ([Parameter ty nm [] | (ty, nm) <- argtys], False)
   , returnType  = retty
@@ -130,7 +136,7 @@ emptyBlock :: Int -> BlockState
 emptyBlock i = BlockState i [] Nothing
 
 emptyCodegen :: CodegenState
-emptyCodegen = CodegenState (Name entryBlockName) Map.empty [] 1 0 Map.empty
+emptyCodegen = CodegenState (Name (toShortString entryBlockName)) Map.empty [] 1 0 Map.empty
 
 execCodegen :: Codegen a -> CodegenState
 execCodegen m = execState (runCodegen m) emptyCodegen
@@ -172,11 +178,11 @@ addBlock bname = do
   let new = emptyBlock ix
       (qname, supply) = uniqueName bname nms
 
-  modify $ \s -> s { blocks = Map.insert (Name qname) new bls
+  modify $ \s -> s { blocks = Map.insert (Name (toShortString qname)) new bls
                    , blockCount = ix + 1
                    , names = supply
                    }
-  return (Name qname)
+  return (Name (toShortString qname))
 
 setBlock :: Name -> Codegen Name
 setBlock bname = do
@@ -274,4 +280,3 @@ cbr cond tr fl = terminator $ Do $ CondBr cond tr fl []
 
 ret :: Operand -> Codegen (Named Terminator)
 ret val = terminator $ Do $ Ret (Just val) []
---}
