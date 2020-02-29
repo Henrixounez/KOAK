@@ -71,11 +71,12 @@ char                := .
 
 -- test = "extern cos(x : double):double;"
 
-test = "\
-\extern cos(x : double):double;\
-\def test(x : double):double x + 2.0;\
-\test (5.0) - 2 * 3 + 1;\
-\"
+-- test = "\
+-- \extern cos(x : double):double;\
+-- \def test(x : double):double x + 2.0;\
+-- \test (5.0) - 2 * 3 + 1;\
+-- \"
+test = "def test(x : double):double x + x;"
 
 data Type = Int | Double | Void
 data UnOp = Not | Minus
@@ -821,7 +822,7 @@ pIdentifierContent d = case dvChar d of
       Parsed [] d2 -> Parsed [c] d1
       Parsed s d2 -> Parsed (c:s) d2
       _ -> NoParse
-    False -> Parsed [] d1
+    False -> Parsed [] d
   _ -> NoParse
 
 pDot :: Derivs -> Result String
