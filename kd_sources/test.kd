@@ -1,4 +1,3 @@
 def test(x : double y : double): double
     x + y;
 
-test (5.0, 2.0) - 2 * 3 + 1;

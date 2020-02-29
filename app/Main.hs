@@ -5,7 +5,7 @@ module Main where
 
 import Lib
 
-import KoakAST
+-- import KoakAST
 import KoakPackrat
 import UserInteractions
 
@@ -15,6 +15,7 @@ main = do
     file <- readFile fileName
     case eval file of
         (Just file) -> case trueFlag of
-            False -> toLLVM $ genModule file
-            True -> toLLVM $ genModule file
+            _ -> putStrLn $ show file
+            -- False -> toLLVM $ genModule file
+            -- True -> toLLVM $ genModule file
         _ -> handleError "Error while parsing.\n"
