@@ -265,6 +265,13 @@ binops = Map.fromList [
   , (KP.Multiplication, fmul)
   , (KP.Division, fdiv)
   , (KP.LessThan, lt)
+  , (KP.GreaterThan, gt)
+  , (KP.Equal, eq)
+  , (KP.NotEqual, neq)
+  ]
+
+unops = Map.fromList [
+   (KP.Minus, minus)
   ]
 
 one = cons $ C.Float (F.Double 1.0)
@@ -291,6 +298,24 @@ lt :: Operand -> Operand -> Codegen Operand
 lt a b = do
   test <- fcmp FP.ULT a b
   uitofp double test
+
+gt :: Operand -> Operand -> Codegen Operand
+gt a b = do
+  test <- fcmp FP.UGT a b
+  uitofp double test
+
+eq :: Operand -> Operand -> Codegen Operand
+eq a b = do
+  test <- fcmp FP.UEQ a b
+  uitofp double test
+
+neq :: Operand -> Operand -> Codegen Operand
+neq a b = do
+  test <- fcmp FP.UNE a b
+  uitofp double test
+
+minus :: Operand -> Codegen Operand
+minus a = instr $ FSub I.noFastMathFlags zero a []
 
 --------
 
@@ -393,7 +418,34 @@ cgen (PC.ExprBinaryOperation op a b) = do
       ca <- cgen a
       cb <- cgen b
       f ca cb
-    Nothing -> error "No such operator"
+    Nothing -> error ("No such operator : `" ++ (show op) ++ "`")
+cgen (PC.ExprUnaryOperation op a) = do
+  case Map.lookup op unops of
+    Just f -> do
+      ca <- cgen a
+      f ca
+    Nothing -> error ("No such operator : `" ++ (show op) ++ "`")
+cgen (PC.ExprIf cond th []) = do
+  ifThen <- addBlock "if.then"
+  ifElse <- addBlock "if.else"
+  ifExit <- addBlock "if.exit"
+  
+  cond <- cgen cond
+  test <- fcmp FP.ONE false cond
+  cbr test ifThen ifElse
+
+  setBlock ifThen
+  thVal <- cgen (th !! 0) --TODO
+  br ifExit
+  ifThen <- getBlock
+
+  setBlock ifElse
+  elVal <- cgen (PC.ExprFloat 0.0)
+  br ifExit
+  ifElse <- getBlock
+
+  setBlock ifExit
+  instr $ LLVM.AST.Phi double [(thVal, ifThen), (elVal, ifElse)] []
 cgen (PC.ExprIf cond th el) = do
   ifThen <- addBlock "if.then"
   ifElse <- addBlock "if.else"
@@ -437,6 +489,21 @@ cgen (PC.ExprFor (ivar, start) cond step body) = do
   cbr test forLoop forExit
 
   setBlock forExit
+  return zero
+cgen (PC.ExprWhile cond body) = do
+  whileLoop <- addBlock "while.loop"
+  whileExit <- addBlock "while.exit"
+
+  br whileLoop
+
+  setBlock whileLoop
+  cgen (body !! 0) -- TODO
+  
+  cond <- cgen cond
+  test <- fcmp FP.ONE false cond
+  cbr test whileLoop whileExit
+
+  setBlock whileExit
   return zero
 
 codegen :: AST.Module -> [PC.Expr] -> AST.Module

@@ -24,6 +24,7 @@ getPrimary (KP.PrimaryLiteral (KP.LiteralFloat d)) = ExprFloat d
 getPrimary (KP.PrimaryExpressions exprs) = getExpression exprs
 
 getUnaryPostfix :: KP.UnaryPostfix -> Expr
+getUnaryPostfix (KP.Unary KP.Not unary) = ExprIf (ExprBinaryOperation KP.NotEqual (ExprFloat 0) (getUnaryPostfix unary)) [ExprFloat 0] [ExprFloat 1]  
 getUnaryPostfix (KP.Unary op unary) = ExprUnaryOperation op (getUnaryPostfix unary)
 getUnaryPostfix (KP.Postfix primary Nothing) = getPrimary primary
 getUnaryPostfix (KP.Postfix (KP.Identifier name) (Just callExpr)) = ExprCall name (map getExpression callExpr) 

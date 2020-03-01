@@ -80,7 +80,7 @@ test = "def test(x : double):double x + 2.0;"
 -- test = "def test(a : double): double if a == 2 then 2 else 4;"
 
 data Type = Int | Double | Void
-data UnOp = Not | Minus
+data UnOp = Not | Minus deriving (Eq, Ord)
 data BinOp = Multiplication | Division | Addition | Substraction | LessThan | GreaterThan | Equal | NotEqual | Assignment deriving (Eq, Ord)
 
 data Stmt = Stmt {
