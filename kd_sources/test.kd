@@ -1,3 +1,6 @@
+extern putchard(x : double): void;
+
 def test(x : double y : double): double
     x + y;
 
+putchard(test(1.0, 2.0));

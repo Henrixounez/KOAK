@@ -67,7 +67,7 @@ whitespace          := (' ' | '\n' | '\t')*
 char                := .
 --}
 
--- test = "def test(x : double):double x + 2.0;"
+test = "def test(x : double):double x + 2.0;"
 
 -- test = "extern cos(x : double):double;"
 
@@ -76,11 +76,12 @@ char                := .
 -- \def test(x : double):double x + 2.0;\
 -- \test (5.0) - 2 * 3 + 1;\
 -- \"
-test = "def test(x : double):double x + x;"
+-- test = "def test(a : double b : double c : double):double a + b + c;"
+-- test = "def test(a : double): double if a == 2 then 2 else 4;"
 
 data Type = Int | Double | Void
 data UnOp = Not | Minus
-data BinOp = Multiplication | Division | Addition | Substraction | LessThan | GreaterThan | Equal | NotEqual | Assignment
+data BinOp = Multiplication | Division | Addition | Substraction | LessThan | GreaterThan | Equal | NotEqual | Assignment deriving (Eq, Ord)
 
 data Stmt = Stmt {
   kdefs           :: [Kdefs]
@@ -135,9 +136,9 @@ data UnaryPostfix = Unary {
   callExpr        :: Maybe [Expression]
 }
 
-data Primary = Identifier String | PrimaryLiteral Literal | PrimaryExpressions Expressions
+data Primary = Identifier String | PrimaryLiteral Literal | PrimaryExpressions Expression
 
-data Literal = LiteralInt Int | LiteralFloat Float
+data Literal = LiteralInt Int | LiteralFloat Double
 
 {--                   --}
 {--
@@ -311,7 +312,7 @@ data Derivs = Derivs {
   dvDot                 :: Result String,
   dvDecimalConst        :: Result Int,
   dvDecimalConstContent :: Result String,
-  dvDoubleConst         :: Result Float,
+  dvDoubleConst         :: Result Double,
   dvLiteral             :: Result Literal,
   dvWhitespace          :: Result (),
   dvUnop                :: Result UnOp,
@@ -404,6 +405,7 @@ pKdefs d = case dvDefStr d of
     Parsed extern d1 -> case dvChar d1 of
       Parsed ';' d2 -> case dvWhitespace d2 of
         Parsed _ d3 -> Parsed extern d3
+      _ -> NoParse
     _ -> case dvExpressions d of
       Parsed exprs d1 -> case dvChar d1 of
         Parsed ';' d2 -> case dvWhitespace d2 of
@@ -797,7 +799,7 @@ pPrimary d = case dvIdentifier d of
   _ -> case dvLiteral d of
     Parsed li d1 -> Parsed (PrimaryLiteral li) d1
     _ -> case dvChar d of
-      Parsed '(' d1 -> case dvExpressions d1 of
+      Parsed '(' d1 -> case dvExpression d1 of
         Parsed expr d2 -> case dvChar d2 of
           Parsed ')' d3 -> Parsed (PrimaryExpressions expr) d3
           _ -> NoParse
@@ -850,17 +852,17 @@ pDecimalConstContent d = case dvChar d of
     False -> Parsed [] d
   _ -> NoParse
 
-pDoubleConst :: Derivs -> Result Float
+pDoubleConst :: Derivs -> Result Double
 pDoubleConst d = case dvDecimalConst d of
   Parsed dc d1 -> case dvDot d1 of
     Parsed _ d2 -> case dvDecimalConstContent d2 of
       Parsed s d3 -> case length s > 0 of
-        True -> Parsed ((fromIntegral dc :: Float) + ((read s :: Float) / (10^(length s)))) d3
-        False -> Parsed (fromIntegral dc :: Float) d3
+        True -> Parsed ((fromIntegral dc :: Double) + ((read s :: Double) / (10^(length s)))) d3
+        False -> Parsed (fromIntegral dc :: Double) d3
     _ -> NoParse
   _ -> case dvDot d of
     Parsed _ d1 -> case dvDecimalConst d1 of
-      Parsed dc d2 -> Parsed ((fromIntegral dc :: Float) / (10^(length (show dc)))) d2
+      Parsed dc d2 -> Parsed ((fromIntegral dc :: Double) / (10^(length (show dc)))) d2
       _ -> NoParse
     _ -> NoParse
 
