@@ -10,9 +10,14 @@ helper = putStrLn "Usage: ./koak (flag)+ path_to_kaleidoscope source file\n\
 \FLAGS (only one at a time):\n\
 \   -h | --help : display help\n\
 \   -O | --so : Generate .so file\n\
-\   -I | --ir : Generates .ll file\n\
-\   -J | --jit : Launch the JIT repl\n\
-\If no flags are given, koak will try to compile the input into a .out file.\n\n"
+\   -B | --bc : Generate .bc file\n\
+\   -S | --as : Generate .s  file\n\
+\   -I | --ir : Generate .ll file\n\
+\   -J | --jit : Launch the JIT repl (Doesn't work with extern functions)\n\
+\If no flags are given, koak will interpret (Same as -J).\n\n\
+\.ll to .bc = llvm-as file.ll\n\
+\.bc to .s  = llc file.s\n\
+\.s  to exe = gcc file.s\n"
 
 handleError :: String -> IO a
 handleError err = do
@@ -35,9 +40,11 @@ handleFlags :: [String] -> IO (String)
 handleFlags args
     | elem "-h" args || elem "--help" args = helper >>= (\x -> exitSuccess)
     | elem "-O" args || elem "--so" args = return "to_so"
+    | elem "-B" args || elem "--bc" args = return "to_bc"
+    | elem "-S" args || elem "--as" args = return "to_s"
     | elem "-I" args || elem "--ir" args = return "to_ir"
     | elem "-J" args || elem "--jit" args = return "to_jit" 
-    | otherwise = return "to_exe"
+    | otherwise = return "to_jit"
 
 
 handleArgs :: IO ((Maybe String, String))

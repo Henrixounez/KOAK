@@ -47,6 +47,13 @@ toObj mod input = T.withHostTargetMachine $ \tgt ->
   withModuleFromAST ctx mod $ \m -> do
     writeObjectToFile tgt (File (generateName input ".so")) m
 
+toS :: AST.Module -> String -> IO ()
+toS mod input = T.withHostTargetMachine $ \tgt ->
+  withContext $ \ctx ->
+  withModuleFromAST ctx mod $ \m -> do
+    writeTargetAssemblyToFile tgt (File (generateName input ".s")) m
+
+
 toIR :: AST.Module -> String -> IO ()
 toIR mod input = withContext $ \ctx ->
   withModuleFromAST ctx mod $ \m -> do
@@ -73,16 +80,19 @@ toJIT ast name = withContext $ \ctx ->
           Nothing -> Prelude.return ()
       Prelude.return ()
 
-
-toExe :: AST.Module -> String -> IO ()
-toExe ast name = Prelude.return ()
+toBC :: AST.Module -> String -> IO ()
+toBC mod input = withContext $ \ctx ->
+  withModuleFromAST ctx mod $ \m -> do
+    writeBitcodeToFile (File (generateName input ".bc")) m
 
 getHandler :: String -> (AST.Module -> String -> IO ())
 getHandler flag
     | flag == "to_so" = toObj
     | flag == "to_jit" = toJIT
     | flag == "to_ir" = toIR
-    | otherwise = toExe
+    | flag == "to_bc" = toBC
+    | flag == "to_s" = toS
+    | otherwise = toJIT
 
 entrypoint :: Stmt -> (String, String) -> IO ()
 entrypoint ast (name, flag) = handler (toAST ast) name
