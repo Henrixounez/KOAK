@@ -10,9 +10,9 @@ kdefs               := ( defStr defs | extern | expressions ) ';' _*
 defStr              := 'def'
 defs                := prototype _* expressions
 prototype           := _* prototype_start _* prototype_args
-prototype_start     := ( unaryStr . decimal_const?
-                       | binaryStr . decimal_const? //TODO
-                       | identifier )
+prototype_start     := ( unaryStr . decimal_const? operator ) |
+                       ( binaryStr . decimal_const? operator ) |
+                       identifier
 unaryStr            := 'unary'
 binaryStr           := 'binary'
 prototype_args      := '(' args_list ')' _* ':' type
@@ -26,11 +26,12 @@ doubleStr           := 'double'
 voidStr             := 'void'
 externStr           := 'extern'
 
-expressions         := _* (for_expr
+expressions         := _* '('? expressionContent ')'? exprConcat
+expressionsContent  := (for_expr
                      | if_expr
                      | while_expr
-                     | expression exprConcat)
-exprConcat          := (':' expression)*
+                     | expression ) exprConcat
+exprConcat          := (_* ':' expressions)?
 for_expr            := forStr identifier '=' expression ','
                        expression ','
                        expression inStr expressions
@@ -62,27 +63,17 @@ dot                 := '.' !'.'
 decimal_const       := [0-9]+
 double_const        := (decimal_const dot [0-9]* | dot decimal_const)
 literal             := decimal_const | double_const
-whitespace          := (' ' | '\n' | '\t')*
-#unop               := '!' | '-'
-#binop              := '*' | '/' | '+' | '-' | '<' | '>' | '==' | '!=' | '='
+whitespace          := (' ' | '\n' | '\t' | comment)*
+comment             := '#' .* '\n'
+operator            := _* (![a-zA-Z0-9_;] operatorContent) _*
+operatorContent     := ![a-zA-Z0-9_;]*
+#unop               := '!' | '-' | operator
+#binop              := '*' | '/' | '+' | '-' | '<' | '>' | '==' | '!=' | '=' | operator
 char                := .
 --}
 
-test = "def test(x : double):double x + 2.0;"
-
--- test = "extern cos(x : double):double;"
-
--- test = "\
--- \extern cos(x : double):double;\
--- \def test(x : double):double x + 2.0;\
--- \test (5.0) - 2 * 3 + 1;\
--- \"
--- test = "def test(a : double b : double c : double):double a + b + c;"
--- test = "def test(a : double): double if a == 2 then 2 else 4;"
-
 data Type = Int | Double | Void
-data UnOp = Not | Minus deriving (Eq, Ord)
-data BinOp = Multiplication | Division | Addition | Substraction | LessThan | GreaterThan | Equal | NotEqual | Assignment deriving (Eq, Ord)
+data FunctionType = Function | UnaryFn | BinaryFn deriving (Eq, Ord)
 
 data Stmt = Stmt {
   kdefs           :: [Kdefs]
@@ -98,9 +89,17 @@ data Kdefs = Defs {
 } | KExpressions Expressions
 
 data Prototype = Prototype {
-  name            :: String, -- TODO: Change?
+  ptype           :: FunctionType,
+  precendence     :: Int,
+  name            :: String,
   args            :: [(Primary, Type)],
   return          :: Type
+}
+
+data PrototypeStart = PrototypeStart {
+  pptype           :: FunctionType,
+  pname           :: String,
+  pprecedence     :: Int
 }
 
 data Expressions = ForExpr {
@@ -115,7 +114,10 @@ data Expressions = ForExpr {
 } | WhileExpr {
   conditionWhile  :: Expression,
   expressions     :: Expressions
-} | Expr [Expression]
+} | ExprConcat {
+  expr            :: Expressions,
+  expressions     :: Expressions
+} | Expr Expression
 
 data Expression = Expression {
   exprUnary       :: UnaryPostfix,
@@ -141,66 +143,8 @@ data Primary = Identifier String | PrimaryLiteral Literal | PrimaryExpressions E
 
 data Literal = LiteralInt Int | LiteralFloat Double
 
-{--                   --}
-{--
-instance Show Stmt where
-  show (Stmt kdefs) = "{stmt: {kdefs: " ++ show kdefs ++ "}}"
-
-instance Show Kdefs where
-  show (Defs proto exprs) = "{defs: {prototype: " ++ show proto ++ ", defExpressions: " ++ show exprs ++ "}}"
-  show (KExpressions exprs) = "{KExpressions: " ++ show exprs ++ "}"
-
-instance Show Prototype where
-  show (Prototype name args return) = "{prototype: {name: " ++ show name ++ ", args: " ++ show args ++ ", return: " ++ show return ++ "}}"
-
-instance Show Expressions where
-  show (ForExpr init condition increment expressions) = "{ForExpr: {init: " ++ show init ++ ", condition: " ++ show condition ++ ", increment: " ++ show increment ++ ", expressions: " ++ show expressions ++ "}}"
-  show (IfExpr cond exprs elseExprs) = "{IfExpr: {condition: " ++ show cond ++ ", expressions: " ++ show exprs ++ ", elseExpressions: " ++ show elseExprs ++ "}}"
-  show (WhileExpr cond exprs) = "{WhileExpr: {condition: " ++ show cond ++ ", expressions: " ++ show exprs ++ "}}"
-  show (Expr exprs) = "{expressions: " ++ show exprs ++ "}"
-
-instance Show Expression where
-  show (Expression exprUnary binops) = "{expression: {exprUnary: " ++ show exprUnary ++ ", binaryOps: " ++ show binops ++ "}}"
-instance Show BinaryOperation where
-  show (BinaryOperation binop unaryExpr) = "{binaryOperation: {binop: " ++ show binop ++ ", unaryExpr: " ++ show unaryExpr ++ "}}"
-
-instance Show UnaryExpr where
-  show (UnaryExprUnary unary) = "{unaryExpr: " ++ show unary ++ "}"
-  show (UnaryExprExpression expr) = "{unaryExpr: " ++ show expr ++ "}"
-
-instance Show UnaryPostfix where
-  show (Unary op unary) = "{unary: {op: " ++ show op ++ ", unary: " ++ show unary ++ "}}"
-  show (Postfix primary callExpr) = "{postfix: {primary: " ++ show primary ++ ", callExpr: " ++ show callExpr ++ "}}"
-
-instance Show Primary where
-  show (Identifier str) = show str
-  show (PrimaryLiteral lit) = show lit
-  show (PrimaryExpressions exp) = show exp
-
-instance Show Literal where
-  show (LiteralInt i) = show i
-  show (LiteralFloat f) = show f
-
-instance Show Type where
-  show Int = "int"
-  show Double = "double"
-  show Void = "void"
-
-instance Show UnOp where
-  show Not = "not"
-  show Minus = "minus"
-
-instance Show BinOp where
-  show Multiplication = "multiplication"
-  show Division = "division"
-  show Addition = "addition"
-  show Substraction = "substraction"
-  show LessThan = "lessThan"
-  show GreaterThan = "greaterThan"
-  show Equal = "equal"
-  show NotEqual = "notEqual"
-  show Assignment = "assignment"
---}
+type BinOp = String
+type UnOp = String
 
 instance Show Stmt where
   show (Stmt kdefs) = "file:\n" ++ show kdefs
@@ -211,13 +155,14 @@ instance Show Kdefs where
   show (KExpressions exprs) = "instructions:\n" ++ show exprs ++ "\n"
 
 instance Show Prototype where
-  show (Prototype name args return) = show name ++ ":\n\targs: " ++ show args ++ "\n\ttype: " ++ show return
+  show (Prototype _ _ name args return) = show name ++ ":\n\targs: " ++ show args ++ "\n\ttype: " ++ show return
 
 instance Show Expressions where
   show (ForExpr init condition increment expressions) = "for:\n\tinit: " ++ show init ++ "\n\tcondition: " ++ show condition ++ "\n\tincrement: " ++ show increment ++ "\n\tinstructions: " ++ show expressions ++ "\n"
   show (IfExpr cond exprs elseExprs) = "if:\n\tcondition: " ++ show cond ++ "\n\tinstructions: " ++ show exprs ++ "\n\telse_instructions: " ++ show elseExprs ++ "\n"
   show (WhileExpr cond exprs) = "while:\n\tcondition: " ++ show cond ++ "\n\tinstructions: " ++ show exprs ++ "\n"
   show (Expr exprs) = show exprs ++ "\n"
+  show (ExprConcat exprs exprsC) = show exprs ++ ", " ++ show exprsC ++ "\n"
 
 instance Show Expression where
   show (Expression (Postfix primary _) ((BinaryOperation binop (UnaryExprUnary (Postfix primaryOne _))):[])) = show binop ++ ": (" ++ show primaryOne ++ ", " ++ show primary ++ ")"
@@ -251,21 +196,6 @@ instance Show Type where
   show Double = "double"
   show Void = "void"
 
-instance Show UnOp where
-  show Not = "not"
-  show Minus = "minus"
-
-instance Show BinOp where
-  show Multiplication = "*"
-  show Division = "/"
-  show Addition = "+"
-  show Substraction = "-"
-  show LessThan = "<"
-  show GreaterThan = ">"
-  show Equal = "=="
-  show NotEqual = "!="
-  show Assignment = "="
-
 {--                   --}
 
 data Result v = Parsed v Derivs
@@ -277,7 +207,7 @@ data Derivs = Derivs {
   dvDefStr              :: Result String,
   dvDefs                :: Result Kdefs,
   dvPrototype           :: Result Prototype,
-  dvPrototypeStart      :: Result String,
+  dvPrototypeStart      :: Result PrototypeStart,
   dvUnaryStr            :: Result String,
   dvBinaryStr           :: Result String,
   dvPrototypeArgs       :: Result ([(Primary, Type)], Type),
@@ -289,7 +219,8 @@ data Derivs = Derivs {
   dvVoidStr             :: Result String,
   dvExternStr           :: Result String,
   dvExpressions         :: Result Expressions,
-  dvExprConcat          :: Result [Expression],
+  dvExpressionsContent  :: Result Expressions,
+  dvExprConcat          :: Result (Maybe Expressions),
   dvForExpr             :: Result Expressions,
   dvIfExpr              :: Result Expressions,
   dvElseExpr            :: Result (Maybe Expressions),
@@ -316,6 +247,9 @@ data Derivs = Derivs {
   dvDoubleConst         :: Result Double,
   dvLiteral             :: Result Literal,
   dvWhitespace          :: Result (),
+  dvComment             :: Result (),
+  dvOperator            :: Result String,
+  dvOperatorContent     :: Result String,
   dvUnop                :: Result UnOp,
   dvBinop               :: Result BinOp,
   dvChar                :: Result Char
@@ -339,7 +273,7 @@ eval s = case dvStmt (parse s) of
 
 parse :: String -> Derivs
 parse s = d where
-    d             = Derivs stmt kdefs defStr defs prototype prototypeS unaryStr binaryStr prototypeArgs argsList types extern intStr doubleStr voidStr externStr expressions exprConcat forExpr ifExpr elseExpr whileExpr forStr inStr ifStr thenStr elseStr whileStr doStr expression binaryOps unary postFix callExpr exprList primary identifier identifierC dot decimalConst decimalConstC doubleConst literal whitespace unop binop char
+    d             = Derivs stmt kdefs defStr defs prototype prototypeS unaryStr binaryStr prototypeArgs argsList types extern intStr doubleStr voidStr externStr expressions expressionsC exprConcat forExpr ifExpr elseExpr whileExpr forStr inStr ifStr thenStr elseStr whileStr doStr expression binaryOps unary postFix callExpr exprList primary identifier identifierC dot decimalConst decimalConstC doubleConst literal whitespace comment op opContent unop binop char
     stmt          = pStmt d
     kdefs         = pKdefs d
     defStr        = pDefStr d
@@ -357,6 +291,7 @@ parse s = d where
     voidStr       = pVoidStr d
     externStr     = pExternStr d
     expressions   = pExpressions d
+    expressionsC  = pExpressionsContent d
     exprConcat    = pExprConcat d
     forExpr       = pForExpr d
     ifExpr        = pIfExpr d
@@ -384,6 +319,9 @@ parse s = d where
     doubleConst   = pDoubleConst d
     literal       = pLiteral d
     whitespace    = pWhitespace d
+    comment       = pComment d
+    op            = pOperator d
+    opContent     = pOperatorContent d
     unop          = pUnop d
     binop         = pBinop d
     char          = case s of
@@ -444,24 +382,32 @@ pDefs d = case dvPrototype d of
 pPrototype :: Derivs -> Result Prototype
 pPrototype d = case dvWhitespace d of
   Parsed _ d1 -> case dvPrototypeStart d1 of
-    Parsed proto d2 -> case dvWhitespace d2 of
+    Parsed (PrototypeStart typ name prec) d2 -> case dvWhitespace d2 of
       Parsed _ d3 -> case dvPrototypeArgs d3 of
-        Parsed (args, return) d4 -> Parsed (Prototype proto args return) d4
+        Parsed (args, return) d4 -> Parsed (Prototype typ prec name args return) d4
         _ -> NoParse Nothing
       _ -> NoParse Nothing
+    _ -> NoParse Nothing
 
--- TODO: Weird ?
-pPrototypeStart :: Derivs -> Result String
+pPrototypeStart :: Derivs -> Result PrototypeStart
 pPrototypeStart d = case dvUnaryStr d of
   Parsed un d1 -> case dvDecimalConst d1 of
-    Parsed dc d2 -> Parsed ((show un) ++ (show dc)) d2
+    Parsed dc d2 -> case dvWhitespace d2 of
+      Parsed _ d3 -> case dvOperator d3 of
+        Parsed id d4 -> Parsed (PrototypeStart UnaryFn id dc) d4
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
     _ -> NoParse Nothing
   _ -> case dvBinaryStr d of
     Parsed bn d1 -> case dvDecimalConst d1 of
-      Parsed dc d2 -> Parsed ((show bn) ++ (show dc)) d2
+      Parsed dc d2 -> case dvWhitespace d2 of
+        Parsed _ d3 -> case dvOperator d3 of
+          Parsed id d4 -> Parsed (PrototypeStart BinaryFn id dc) d4
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
       _ -> NoParse Nothing
     _ -> case dvIdentifier d of
-      Parsed (Identifier id) d1 -> Parsed id d1
+      Parsed (Identifier id) d1 -> Parsed (PrototypeStart Function id 0) d1
       _ -> NoParse Nothing
 
 pUnaryStr :: Derivs -> Result String
@@ -470,7 +416,8 @@ pUnaryStr d = case dvChar d of
     Parsed 'n' d2 -> case dvChar d2 of
       Parsed 'a' d3 -> case dvChar d3 of
         Parsed 'r' d4 -> case dvChar d4 of
-          Parsed 'y' d5 -> Parsed "unary" d5
+          Parsed 'y' d5 -> case dvWhitespace d5 of
+            Parsed _ d6 -> Parsed "unary" d6
           _ -> NoParse Nothing
         _ -> NoParse Nothing
       _ -> NoParse Nothing
@@ -484,7 +431,8 @@ pBinaryStr d = case dvChar d of
       Parsed 'n' d3 -> case dvChar d3 of
         Parsed 'a' d4 -> case dvChar d4 of
           Parsed 'r' d5 -> case dvChar d5 of
-            Parsed 'y' d6 -> Parsed "binary" d6
+            Parsed 'y' d6 -> case dvWhitespace d6 of
+              Parsed _ d7 -> Parsed "binary" d7
             _ -> NoParse Nothing
           _ -> NoParse Nothing
         _ -> NoParse Nothing
@@ -592,6 +540,25 @@ pExternStr d = case dvChar d of
 
 pExpressions :: Derivs -> Result Expressions
 pExpressions d = case dvWhitespace d of
+  Parsed _ d1 -> case dvChar d1 of
+    Parsed '(' d2 -> case dvExpressionsContent d2 of
+      Parsed exprs d3 -> case dvChar d3 of
+        Parsed ')' d4 -> case dvExprConcat d4 of
+          Parsed (Just exprsC) d5 -> Parsed (ExprConcat exprs exprsC) d5
+          Parsed (Nothing) d5 -> Parsed exprs d4
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    Parsed c d2 -> case dvExpressionsContent d1 of
+      Parsed exprs d2 -> case dvExprConcat d2 of
+        Parsed (Just exprsC) d3 -> Parsed (ExprConcat exprs exprsC) d3
+        Parsed (Nothing) d3 -> Parsed exprs d2
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+
+pExpressionsContent :: Derivs -> Result Expressions
+pExpressionsContent d = case dvWhitespace d of
   Parsed _ d1 -> case dvForExpr d1 of
     Parsed expr d2 -> Parsed expr d2
     _ -> case dvIfExpr d1 of
@@ -599,20 +566,18 @@ pExpressions d = case dvWhitespace d of
       _ -> case dvWhileExpr d1 of
         Parsed expr d2 -> Parsed expr d2
         _ -> case dvExpression d1 of
-          Parsed expr d2 -> case dvExprConcat d2 of
-            Parsed exprs d3 -> Parsed (Expr (expr:exprs)) d3
-            _ -> NoParse Nothing
+          Parsed expr d2 -> Parsed (Expr expr) d2
           _ -> NoParse Nothing
         
-pExprConcat :: Derivs -> Result [Expression]
-pExprConcat d = case dvChar d of
-  Parsed ':' d1 -> case dvExpression d1 of
-    Parsed ex d2 -> case dvExprConcat d2 of
-      Parsed [] d3 -> Parsed [ex] d3
-      Parsed exs d3 -> Parsed (ex:exs) d3
+pExprConcat :: Derivs -> Result (Maybe Expressions)
+pExprConcat d = case dvWhitespace d of
+  Parsed _ d1 -> case dvChar d1 of
+    Parsed ':' d2 -> case dvExpressions d2 of
+      Parsed ex d3 -> Parsed (Just ex) d3
       _ -> NoParse Nothing
+    Parsed c d -> Parsed Nothing d1
     _ -> NoParse Nothing
-  _ -> Parsed [] d
+  _ -> NoParse Nothing
 
 pForExpr :: Derivs -> Result Expressions
 pForExpr d = case dvForStr d of
@@ -650,7 +615,6 @@ pIfExpr d = case dvIfStr d of
     _ -> NoParse Nothing
   _ -> NoParse Nothing
 
--- TODO: To Change
 pElseExpr :: Derivs -> Result (Maybe Expressions)
 pElseExpr d = case dvElseStr d of
   Parsed _ d1 -> case dvExpressions d1 of
@@ -837,7 +801,7 @@ pDot :: Derivs -> Result String
 pDot d = case dvChar d of
   Parsed '.' d1 -> case dvChar d1 of
     Parsed '.' _ -> NoParse Nothing
-    Parsed c d2 -> Parsed "." d2
+    Parsed c d2 -> Parsed "." d1
     _ -> NoParse Nothing
   _ -> NoParse Nothing
 
@@ -872,7 +836,6 @@ pDoubleConst d = case dvDecimalConst d of
       _ -> NoParse Nothing
     _ -> NoParse Nothing 
 
--- TODO: Change ?
 pLiteral :: Derivs -> Result Literal
 pLiteral d = case dvDoubleConst d of
   Parsed dc d1 -> Parsed (LiteralFloat dc) d1
@@ -885,31 +848,50 @@ isWhiteSpace x = elem x [' ', '\t', '\r', '\n']
 
 pWhitespace :: Derivs -> Result ()
 pWhitespace d = case dvChar d of
-      Parsed c d1 ->
-        if isWhiteSpace c
-        then pWhitespace d1
-        else Parsed () d
-      _ -> Parsed () d
+  Parsed '#' d1 -> case dvComment d1 of
+    Parsed _ d2 -> pWhitespace d2
+  Parsed c d1 ->
+    if isWhiteSpace c
+    then pWhitespace d1
+    else Parsed () d
+  _ -> Parsed () d
 
-pBinop :: Derivs -> Result BinOp
-pBinop d = case dvChar d of
-  Parsed '*' d1 -> Parsed Multiplication d1
-  Parsed '/' d1 -> Parsed Division d1
-  Parsed '+' d1 -> Parsed Addition d1
-  Parsed '-' d1 -> Parsed Substraction d1
-  Parsed '<' d1 -> Parsed LessThan d1
-  Parsed '>' d1 -> Parsed GreaterThan d1
-  Parsed '=' d1 -> case dvChar d1 of
-    Parsed '=' d2 -> Parsed Equal d2
-    NoParse str -> NoParse str
-    _ -> Parsed Assignment d1
-  Parsed '!' d1 -> case dvChar d1 of
-    Parsed '=' d2 -> Parsed NotEqual d2
+pComment :: Derivs -> Result ()
+pComment d = case dvChar d of
+  Parsed '\n' d1 -> Parsed () d1
+  Parsed _ d1 -> pComment d1
+  _ -> Parsed () d
+
+isSpecialChar :: Char -> Bool
+isSpecialChar c = (not $ isAlphaNum c) && (not $ isWhiteSpace c) && (not $ elem c [';', ')', '(', ':', ',', '#'])
+
+pOperator :: Derivs -> Result String
+pOperator d = case dvWhitespace d of
+  Parsed _ d1 -> case dvChar d1 of
+    Parsed c d2 -> case isSpecialChar c of
+      True -> case dvOperatorContent d2 of
+        Parsed s d3 -> case dvWhitespace d3 of
+          Parsed _ d4 -> Parsed (c:s) d4
+        _ -> NoParse Nothing
+      False -> NoParse Nothing
     _ -> NoParse Nothing
+
+pOperatorContent :: Derivs -> Result String
+pOperatorContent d = case dvChar d of
+  Parsed c d1 -> case isSpecialChar c of
+    True -> case dvOperatorContent d1 of
+      Parsed [] d2 -> Parsed [c] d1
+      Parsed s d2 -> Parsed (c:s) d2
+      _ -> NoParse Nothing
+    False -> Parsed [] d
   _ -> NoParse Nothing
 
-pUnop :: Derivs -> Result UnOp
-pUnop d = case dvChar d of
-  Parsed '!' d1 -> Parsed Not d1
-  Parsed '-' d1 -> Parsed Minus d1
+pBinop :: Derivs -> Result UnOp
+pBinop d = case dvOperator d of
+  Parsed s d1 -> Parsed s d1
+  _ -> NoParse Nothing
+
+pUnop :: Derivs -> Result BinOp
+pUnop d = case dvOperator d of
+  Parsed s d1 -> Parsed s d1
   _ -> NoParse Nothing

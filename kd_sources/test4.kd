@@ -1,7 +1,7 @@
-extern putchard(x : double): void;
+extern putd(x : double): void;
 
 def test(x: double): double
   while x < 100.0 do
-   putchard(x = (x + 20.1));
+   putd(x = (x + 20.1));
 
 test(0);

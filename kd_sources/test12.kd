@@ -1,0 +1,5 @@
+def unary 0 ~ (a: double): double -a;
+
+def binary 0 *+* (LHS: double RHS: double): double ((LHS * RHS) + (LHS * RHS));
+
+~(2.0 *+* 3.0);

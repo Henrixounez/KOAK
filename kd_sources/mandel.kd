@@ -1,0 +1,36 @@
+extern putchard(char: double): double;
+
+def printdensity(d: double): double
+  if d > 8 then
+    putchard(32)
+  else if d > 4 then
+    putchard(46)
+  else if d > 2 then
+    putchard(43)
+  else
+    putchard(42);
+
+def mandelconverger(real: double imag: double iters: double creal: double cimag: double): double
+  if iters > 255 | ((real*real) + (imag*imag) > 4) then
+    iters
+  else
+    mandelconverger((real*real) - (imag*imag) + creal,
+                    (2*real*imag) + cimag,
+                    iters+1, creal, cimag);
+
+def mandelconverge(real: double imag: double): double
+  mandelconverger(real, imag, 0, real, imag);
+
+def mandelhelp(xmin: double xmax: double xstep: double ymin: double ymax: double ystep: double): double
+  for y = ymin, y < ymax, ystep in (
+    for x = xmin, x < xmax, xstep in
+     printdensity(mandelconverge(x,y))
+  ) : putchard(10);
+
+def mandel(realstart: double imagstart: double realmag: double imagmag: double): double
+  mandelhelp(realstart, realstart+(realmag*100), realmag,
+             imagstart, imagstart+(imagmag*50), imagmag);
+
+mandel(-2, -1.22, 0.027, 0.05);
+#mandel(-2, -1, 0.02, 0.04);
+#mandel(-0.9, -1.4, 0.02, 0.03);

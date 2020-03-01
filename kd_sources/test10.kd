@@ -1,0 +1,6 @@
+extern putd(x: double): double;
+
+putd(0 & 0);
+putd(1 & 0);
+putd(0 & 1);
+putd(1 & 1);

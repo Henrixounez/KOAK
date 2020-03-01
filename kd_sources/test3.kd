@@ -1,5 +1,5 @@
-extern putchard(x : double): void;
+extern putd(x : double): void;
 
 def test(x: double): double
   for i = 0, i < x, 1.0 in
-    putchard(i);
+    putd(i);

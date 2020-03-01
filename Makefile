@@ -11,7 +11,7 @@ all:
 		stack build
 
 tests_run:	all
-		stack test
+		stack test :unit-HUnit
 
 clean:
 		$(RM) koak

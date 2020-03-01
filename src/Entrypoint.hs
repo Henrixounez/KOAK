@@ -6,6 +6,7 @@ import Debug.Trace
 import Codegen
 import KoakPackrat
 import PackratCleaner
+import UserInteractions
 
 import Foreign.Ptr ( FunPtr, castFunPtr )
 
@@ -62,8 +63,8 @@ toIR mod input = withContext $ \ctx ->
 initModule :: AST.Module
 initModule = emptyModule "Koak Compiler"
 
-toAST :: Stmt -> AST.Module
-toAST stmt = codegen initModule (cleanPackrat stmt)
+toAST :: [Expr] -> String -> AST.Module
+toAST cPackrat flag = codegen initModule cPackrat
 
 toJIT :: AST.Module -> String -> IO ()
 toJIT ast name = withContext $ \ctx ->
@@ -94,7 +95,16 @@ getHandler flag
     | flag == "to_s" = toS
     | otherwise = toJIT
 
+filterExtern :: Expr -> Bool
+filterExtern (ExprExtern _ _ ) = True
+filterExtern _ = False
+
 entrypoint :: Stmt -> (String, String) -> IO ()
-entrypoint ast (name, flag) = handler (toAST ast) name
-    where handler = getHandler flag
-    
+entrypoint stmt (name, flag) = case errorExtern of
+    True -> handleError "Error: JIT Compilation cannot have extern definitions."
+    False -> handler ast name
+  where
+    cPackrat = cleanPackrat stmt
+    errorExtern = (flag == "to_jit") && (length (filter filterExtern cPackrat) /= 0)
+    handler = getHandler flag
+    ast = toAST cPackrat flag

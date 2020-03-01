@@ -1,8 +1,5 @@
 module Codegen where
 
--- {-# LANGUAGE OverloadedStrings #-}
--- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 import qualified KoakPackrat as KP
 import qualified PackratCleaner as PC
 
@@ -254,24 +251,25 @@ local = LocalReference double
 global ::  Name -> C.Constant
 global = C.GlobalReference double
 
--- externf :: Name -> Operand
--- externf = ConstantOperand . C.GlobalReference PointerType {pointerReferent = FunctionType {resultType = FloatingPointType {floatingPointType = DoubleFP}, argumentTypes = [FloatingPointType {floatingPointType = DoubleFP},FloatingPointType {floatingPointType = DoubleFP}], isVarArg = False}, pointerAddrSpace = AddrSpace 0}
-
 -- Arithmetic and Constants
 
 binops = Map.fromList [
-    (KP.Addition, fadd)
-  , (KP.Substraction, fsub)
-  , (KP.Multiplication, fmul)
-  , (KP.Division, fdiv)
-  , (KP.LessThan, lt)
-  , (KP.GreaterThan, gt)
-  , (KP.Equal, eq)
-  , (KP.NotEqual, neq)
+    ("+", fadd)
+  , ("-", fsub)
+  , ("*", fmul)
+  , ("/", fdiv)
+  , ("<", lt)
+  , (">", gt)
+  , ("==", eq)
+  , ("!=", neq)
+  , (":", sequ)
+  -- , ("|", fOr)
+  -- , ("&", fAnd)
+  , ("^", fXor)
   ]
 
 unops = Map.fromList [
-   (KP.Minus, minus)
+   ("-", minus)
   ]
 
 one = cons $ C.Float (F.Double 1.0)
@@ -313,6 +311,19 @@ neq :: Operand -> Operand -> Codegen Operand
 neq a b = do
   test <- fcmp FP.UNE a b
   uitofp double test
+
+sequ :: Operand -> Operand -> Codegen Operand
+sequ a b = do
+  return b
+
+fOr :: Operand -> Operand -> Codegen Operand
+fOr a b = instr $ Or a b []
+
+fAnd :: Operand -> Operand -> Codegen Operand
+fAnd a b = instr $ And a b []
+
+fXor :: Operand -> Operand -> Codegen Operand
+fXor a b = instr $ Xor a b []
 
 minus :: Operand -> Codegen Operand
 minus a = instr $ FSub I.noFastMathFlags zero a []
@@ -373,6 +384,10 @@ codegenTop (PC.ExprFunction name args body) = do
           assign a var
         mapM cgen (init body)
         cgen (last body) >>= ret
+codegenTop (PC.ExprBinaryDef name args body) =
+  codegenTop $ PC.ExprFunction ("binary" ++ name) args [body]
+codegenTop (PC.ExprUnaryDef name args body) =
+  codegenTop $ PC.ExprFunction ("unary" ++ name) args [body]
 codegenTop (PC.ExprExtern name args) = do
   external double name fnArgs
     where
@@ -398,7 +413,7 @@ cgen (PC.ExprCall fn args) = do
     externf = ConstantOperand . C.GlobalReference pointerType
     pointerType = PointerType {pointerReferent = FunctionType {resultType = FloatingPointType {floatingPointType = DoubleFP}, argumentTypes = argsList, isVarArg = False}, pointerAddrSpace = AddrSpace 0}
     argsList = [FloatingPointType {floatingPointType = DoubleFP} | i <- [0..((Data.List.length args) - 1)]]
-cgen (PC.ExprBinaryOperation KP.Assignment (PC.ExprVar var) val) = do
+cgen (PC.ExprBinaryOperation "=" (PC.ExprVar var) val) = do
   a <- mgetvar var
   case a of
     (Just a) -> do
@@ -418,14 +433,14 @@ cgen (PC.ExprBinaryOperation op a b) = do
       ca <- cgen a
       cb <- cgen b
       f ca cb
-    Nothing -> error ("No such operator : `" ++ (show op) ++ "`")
+    Nothing -> cgen (PC.ExprCall ("binary" ++ op) [a, b])
 cgen (PC.ExprUnaryOperation op a) = do
   case Map.lookup op unops of
     Just f -> do
       ca <- cgen a
       f ca
-    Nothing -> error ("No such operator : `" ++ (show op) ++ "`")
-cgen (PC.ExprIf cond th []) = do
+    Nothing -> cgen (PC.ExprCall ("unary" ++ op) [a])
+cgen (PC.ExprIf cond th Nothing) = do
   ifThen <- addBlock "if.then"
   ifElse <- addBlock "if.else"
   ifExit <- addBlock "if.exit"
@@ -435,7 +450,7 @@ cgen (PC.ExprIf cond th []) = do
   cbr test ifThen ifElse
 
   setBlock ifThen
-  thVal <- cgen (th !! 0) --TODO
+  thVal <- cgen th
   br ifExit
   ifThen <- getBlock
 
@@ -446,7 +461,7 @@ cgen (PC.ExprIf cond th []) = do
 
   setBlock ifExit
   instr $ LLVM.AST.Phi double [(thVal, ifThen), (elVal, ifElse)] []
-cgen (PC.ExprIf cond th el) = do
+cgen (PC.ExprIf cond th (Just el)) = do
   ifThen <- addBlock "if.then"
   ifElse <- addBlock "if.else"
   ifExit <- addBlock "if.exit"
@@ -456,12 +471,12 @@ cgen (PC.ExprIf cond th el) = do
   cbr test ifThen ifElse
 
   setBlock ifThen
-  thVal <- cgen (th !! 0) --TODO
+  thVal <- cgen th
   br ifExit
   ifThen <- getBlock
 
   setBlock ifElse
-  elVal <- cgen (el !! 0) -- TODO
+  elVal <- cgen el
   br ifExit
   ifElse <- getBlock
 
@@ -479,7 +494,7 @@ cgen (PC.ExprFor (ivar, start) cond step body) = do
   br forLoop
 
   setBlock forLoop
-  cgen (body !! 0) -- TODO
+  cgen body
   iVal <- load i
   iNext <- fadd iVal stepVal
   store i iNext
@@ -497,7 +512,7 @@ cgen (PC.ExprWhile cond body) = do
   br whileLoop
 
   setBlock whileLoop
-  cgen (body !! 0) -- TODO
+  cgen body
   
   cond <- cgen cond
   test <- fcmp FP.ONE false cond
@@ -505,18 +520,10 @@ cgen (PC.ExprWhile cond body) = do
 
   setBlock whileExit
   return zero
+cgen e = trace (show e) undefined
 
 codegen :: AST.Module -> [PC.Expr] -> AST.Module
 codegen mod fns = newast
   where
     modn = mapM codegenTop fns
     newast = runLLVM mod modn
--- codegen :: AST.Module -> [PC.Expr] -> IO AST.Module
--- codegen mod fns = withContext $ \context ->
---   withModuleFromAST context newast $ \m -> do
---     llstr <- moduleLLVMAssembly m
---     putStrLn (UTF8.toString llstr)
---     return newast
---   where
---     modn = mapM codegenTop fns
---     newast = runLLVM mod modn

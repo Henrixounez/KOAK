@@ -1,5 +1,6 @@
-extern putchard(x: double): double;
+extern putd(x: double): double;
 
 def test(x: double): double if x == 2.0 then 27.0;
 y = 2.0;
-putchard(test (y + 0.0));
+
+putd(test (y + 0.0));

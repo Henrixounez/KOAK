@@ -1,5 +1,5 @@
-extern putchard(x: double): double;
+extern putd(x: double): double;
 
 def test(x: double): double x + 10;
 
-test(10);
+putd(test(10));

@@ -1,0 +1,3 @@
+def unary 0 ~ (a: double): double -a;
+
+~20;
