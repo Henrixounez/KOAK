@@ -22,7 +22,7 @@ main = do
     case eval file of
         (Just file) -> case trueFlag of
             _ -> do
-              codegen initModule (trace (show $ cleanPackrat file) (cleanPackrat file))
+              codegen initModule (cleanPackrat file)
               Prelude.return ()
             -- False -> toLLVM $ genModule file
             -- True -> toLLVM $ genModule file
