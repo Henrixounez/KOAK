@@ -6,7 +6,14 @@ import System.Exit
 import qualified Data.Text as T
 
 helper :: IO ()
-helper = putStrLn "Usage: ./koak path_to_kaleidoscope source file\n"
+helper = putStrLn 
+"Usage: ./koak (flag)+ path_to_kaleidoscope source file\n\
+\FLAGS (only one at a time):\n\
+\   -h | --help : display help\n\
+\   -O | --so : Generate .so file\n\
+\   -I | --ir : Generates .ll file\n\
+\   -J | --jit : Launch the JIT repl\n
+\If no flags are given, koak will try to compile the input into a .out file.\n\n"
 
 handleError :: String -> IO a
 handleError err = do
@@ -27,9 +34,10 @@ handleKDFiles args = return $ foldr checkKd Nothing args
 
 handleFlags :: [String] -> IO (String)
 handleFlags args
-    | elem "-h" args = helper >>= (\x -> exitSuccess)
-    | elem "-O" args = return "to_so"
-    | elem "-J" args = return "to_jit" 
+    | elem "-h" args || elem "--help" args = helper >>= (\x -> exitSuccess)
+    | elem "-O" args || elem "--so" args = return "to_so"
+    | elem "-I" args || elem "--ir" args = return "to_ir"
+    | elem "-J" args || elem "--jit" args = return "to_jit" 
     | otherwise = return "to_exe"
 
 

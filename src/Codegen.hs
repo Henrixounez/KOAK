@@ -3,6 +3,10 @@ module Codegen where
 -- {-# LANGUAGE OverloadedStrings #-}
 -- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+import qualified KoakPackrat as KP
+import qualified PackratCleaner as PC
+
+import Debug.Trace
 import Data.Word
 import Data.String
 import Data.List
@@ -22,6 +26,10 @@ import qualified LLVM.AST.Attribute as A
 import qualified LLVM.AST.CallingConvention as CC
 import qualified LLVM.AST.FloatingPointPredicate as FP
 import qualified LLVM.AST.Instruction as I
+import qualified LLVM.AST.Float as F
+import LLVM.AST.AddrSpace
+import LLVM.Context
+import LLVM.Module
 
 import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.ByteString.Short as SB
@@ -71,8 +79,10 @@ external retty label argtys = addDefn $
 -- Types
 -------------------------------------------------------------------------------
 
--- IEEE 754 double // IEEE was removed because not found
-double :: Type
+int :: LLVM.AST.Type
+int = IntegerType 32
+
+double :: LLVM.AST.Type
 double = FloatingPointType DoubleFP
 
 -------------------------------------------------------------------------------
@@ -156,6 +166,15 @@ instr ins = do
   modifyBlock (blk { stack = (ref := ins) : i } )
   return $ local ref
 
+instrNoSave :: Instruction -> Codegen (Operand)
+instrNoSave ins = do
+  n <- fresh
+  let ref = (UnName n)
+  blk <- current
+  let i = stack blk
+  modifyBlock (blk { stack = (Do ins) : i})
+  return $ local ref
+
 terminator :: Named Terminator -> Codegen (Named Terminator)
 terminator trm = do
   blk <- current
@@ -230,8 +249,8 @@ local = LocalReference double
 global ::  Name -> C.Constant
 global = C.GlobalReference double
 
-externf :: Name -> Operand
-externf = ConstantOperand . C.GlobalReference double
+-- externf :: Name -> Operand
+-- externf = ConstantOperand . C.GlobalReference PointerType {pointerReferent = FunctionType {resultType = FloatingPointType {floatingPointType = DoubleFP}, argumentTypes = [FloatingPointType {floatingPointType = DoubleFP},FloatingPointType {floatingPointType = DoubleFP}], isVarArg = False}, pointerAddrSpace = AddrSpace 0}
 
 -- Arithmetic and Constants
 fadd :: Operand -> Operand -> Codegen Operand
@@ -266,7 +285,7 @@ alloca :: Type -> Codegen Operand
 alloca ty = instr $ Alloca ty Nothing 0 []
 
 store :: Operand -> Operand -> Codegen Operand
-store ptr val = instr $ Store False ptr val Nothing 0 []
+store ptr val = instrNoSave $ Store False ptr val Nothing 0 []
 
 load :: Operand -> Codegen Operand
 load ptr = instr $ Load False ptr Nothing 0 []
@@ -280,3 +299,75 @@ cbr cond tr fl = terminator $ Do $ CondBr cond tr fl []
 
 ret :: Operand -> Codegen (Named Terminator)
 ret val = terminator $ Do $ Ret (Just val) []
+
+--------------
+
+toType :: KP.Type -> AST.Type
+toType kType = case kType of
+    KP.Int -> int
+    KP.Double -> double
+    -- TODO void
+
+codegenTop :: PC.Expr -> LLVM ()
+codegenTop (PC.ExprFunction name args body) = do
+  define double name fnArgs bls
+    where
+      fnArgs = toSig args
+      bls = createBlocks $ execCodegen $ do
+        entry <- addBlock entryBlockName
+        setBlock entry
+        forM args $ \(PC.ExprVar a) -> do
+          var <- alloca double
+          store var (local (AST.Name (toShortString a)))
+          assign a var
+        cgen (body !! 0) >>= ret -- TODO
+codegenTop (PC.ExprExtern name args) = do
+  external double name fnArgs
+    where
+      fnArgs = toSig args
+codegenTop exp = do
+  define double "main" [] blks
+    where
+      blks = createBlocks $ execCodegen $ do
+        entry <- addBlock entryBlockName
+        setBlock entry
+        cgen exp >>= ret
+
+toSig :: [PC.Expr] -> [(AST.Type, AST.Name)]
+toSig = map (\(PC.ExprVar x) -> (double, AST.Name (toShortString x)))
+
+binops = Map.fromList [
+    (KP.Addition, fadd)
+  , (KP.Substraction, fsub)
+  , (KP.Multiplication, fmul)
+  , (KP.Division, fdiv)
+  ]
+  -- (KP.LessThan, lt)
+
+cgen :: PC.Expr -> Codegen AST.Operand
+cgen (PC.ExprFloat n) = return $ cons $ C.Float (F.Double n)
+cgen (PC.ExprVar x) = getvar x >>= load
+cgen (PC.ExprCall fn args) = do
+  largs <- mapM cgen args
+  call (externf (AST.Name (toShortString fn))) largs
+  where
+    externf = ConstantOperand . C.GlobalReference pointerType
+    pointerType = PointerType {pointerReferent = FunctionType {resultType = FloatingPointType {floatingPointType = DoubleFP}, argumentTypes = argsList, isVarArg = False}, pointerAddrSpace = AddrSpace 0}
+    argsList = [FloatingPointType {floatingPointType = DoubleFP} | i <- [0..((Data.List.length args) - 1)]]
+cgen (PC.ExprBinaryOperation op a b) = do
+  case Map.lookup op binops of
+    Just f -> do
+      ca <- cgen a
+      cb <- cgen b
+      f ca cb
+    Nothing -> error "No such operator"
+
+codegen :: AST.Module -> [PC.Expr] -> IO AST.Module
+codegen mod fns = withContext $ \context ->
+  withModuleFromAST context newast $ \m -> do
+    llstr <- moduleLLVMAssembly m
+    putStrLn (UTF8.toString llstr)
+    return newast
+  where
+    modn = mapM codegenTop fns
+    newast = runLLVM mod modn
