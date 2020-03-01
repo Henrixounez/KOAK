@@ -240,6 +240,11 @@ getvar var = do
     Just x  -> return x
     Nothing -> error $ "Local variable not in scope: " ++ show var
 
+mgetvar :: String -> Codegen (Maybe Operand)
+mgetvar var = do
+  syms <- gets symtab
+  return (lookup var syms)
+
 -------------------------------------------------------------------------------
 
 -- References
@@ -253,6 +258,20 @@ global = C.GlobalReference double
 -- externf = ConstantOperand . C.GlobalReference PointerType {pointerReferent = FunctionType {resultType = FloatingPointType {floatingPointType = DoubleFP}, argumentTypes = [FloatingPointType {floatingPointType = DoubleFP},FloatingPointType {floatingPointType = DoubleFP}], isVarArg = False}, pointerAddrSpace = AddrSpace 0}
 
 -- Arithmetic and Constants
+
+binops = Map.fromList [
+    (KP.Addition, fadd)
+  , (KP.Substraction, fsub)
+  , (KP.Multiplication, fmul)
+  , (KP.Division, fdiv)
+  , (KP.LessThan, lt)
+  ]
+
+one = cons $ C.Float (F.Double 1.0)
+zero = cons $ C.Float (F.Double 0.0)
+false = zero
+true = one
+
 fadd :: Operand -> Operand -> Codegen Operand
 fadd a b = instr $ FAdd I.noFastMathFlags a b []
 
@@ -267,6 +286,13 @@ fdiv a b = instr $ FDiv I.noFastMathFlags a b []
 
 fcmp :: FP.FloatingPointPredicate -> Operand -> Operand -> Codegen Operand
 fcmp cond a b = instr $ FCmp cond a b []
+
+lt :: Operand -> Operand -> Codegen Operand
+lt a b = do
+  test <- fcmp FP.ULT a b
+  uitofp double test
+
+--------
 
 cons :: C.Constant -> Operand
 cons = ConstantOperand
@@ -320,7 +346,8 @@ codegenTop (PC.ExprFunction name args body) = do
           var <- alloca double
           store var (local (AST.Name (toShortString a)))
           assign a var
-        cgen (body !! 0) >>= ret -- TODO
+        mapM cgen (init body)
+        cgen (last body) >>= ret
 codegenTop (PC.ExprExtern name args) = do
   external double name fnArgs
     where
@@ -336,14 +363,6 @@ codegenTop exp = do
 toSig :: [PC.Expr] -> [(AST.Type, AST.Name)]
 toSig = map (\(PC.ExprVar x) -> (double, AST.Name (toShortString x)))
 
-binops = Map.fromList [
-    (KP.Addition, fadd)
-  , (KP.Substraction, fsub)
-  , (KP.Multiplication, fmul)
-  , (KP.Division, fdiv)
-  ]
-  -- (KP.LessThan, lt)
-
 cgen :: PC.Expr -> Codegen AST.Operand
 cgen (PC.ExprFloat n) = return $ cons $ C.Float (F.Double n)
 cgen (PC.ExprVar x) = getvar x >>= load
@@ -354,6 +373,20 @@ cgen (PC.ExprCall fn args) = do
     externf = ConstantOperand . C.GlobalReference pointerType
     pointerType = PointerType {pointerReferent = FunctionType {resultType = FloatingPointType {floatingPointType = DoubleFP}, argumentTypes = argsList, isVarArg = False}, pointerAddrSpace = AddrSpace 0}
     argsList = [FloatingPointType {floatingPointType = DoubleFP} | i <- [0..((Data.List.length args) - 1)]]
+cgen (PC.ExprBinaryOperation KP.Assignment (PC.ExprVar var) val) = do
+  a <- mgetvar var
+  case a of
+    (Just a) -> do
+      cval <- cgen val
+      store a cval
+      return cval
+    Nothing -> do
+      cur <- gets currentBlock
+      i <- alloca double
+      cval <- cgen val
+      assign var i
+      store i cval
+      load i
 cgen (PC.ExprBinaryOperation op a b) = do
   case Map.lookup op binops of
     Just f -> do
@@ -361,6 +394,50 @@ cgen (PC.ExprBinaryOperation op a b) = do
       cb <- cgen b
       f ca cb
     Nothing -> error "No such operator"
+cgen (PC.ExprIf cond th el) = do
+  ifThen <- addBlock "if.then"
+  ifElse <- addBlock "if.else"
+  ifExit <- addBlock "if.exit"
+  
+  cond <- cgen cond
+  test <- fcmp FP.ONE false cond
+  cbr test ifThen ifElse
+
+  setBlock ifThen
+  thVal <- cgen (th !! 0) --TODO
+  br ifExit
+  ifThen <- getBlock
+
+  setBlock ifElse
+  elVal <- cgen (el !! 0) -- TODO
+  br ifExit
+  ifElse <- getBlock
+
+  setBlock ifExit
+  instr $ LLVM.AST.Phi double [(thVal, ifThen), (elVal, ifElse)] []
+cgen (PC.ExprFor (ivar, start) cond step body) = do
+  forLoop <- addBlock "for.loop"
+  forExit <- addBlock "for.exit"
+
+  i <- alloca double
+  iStart <- cgen start
+  stepVal <- cgen step
+  store i iStart
+  assign ivar i
+  br forLoop
+
+  setBlock forLoop
+  cgen (body !! 0) -- TODO
+  iVal <- load i
+  iNext <- fadd iVal stepVal
+  store i iNext
+
+  cond <- cgen cond
+  test <- fcmp FP.ONE false cond
+  cbr test forLoop forExit
+
+  setBlock forExit
+  return zero
 
 codegen :: AST.Module -> [PC.Expr] -> IO AST.Module
 codegen mod fns = withContext $ \context ->
