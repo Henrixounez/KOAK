@@ -53,6 +53,13 @@ packages:
       sha256: c9b38b60593401bb378b694a42b085d46f74f97d86d39edeb01a616965f2b581
   original:
     hackage: text-1.2.3.1
+- completed:
+    hackage: HUnit-1.6.0.0@sha256:8014b27c884becd8041214a1ab263fa92244ca62700a911aff604a1047869298,1570
+    pantry-tree:
+      size: 878
+      sha256: 270a6f8d6ef23eba3a9a1697aa244576abb168d10cb8e4736cf4add2b09eb650
+  original:
+    hackage: HUnit-1.6.0.0
 snapshots:
 - completed:
     size: 524162

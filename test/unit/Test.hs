@@ -24,13 +24,13 @@ testParseSuccess3 = TestCase (assertNotEqual "TestFail" "Nothing" (show $ eval t
 testParseSuccess4 = TestCase (assertNotEqual "TestFail" "Nothing" (show $ eval testExtern))
 
 tests = TestList [
-  TestLabel "testParseFail1" testParseFail1,
-  TestLabel "testParseFail2" testParseFail2,
-  TestLabel "testParseFail3" testParseFail3,
-  TestLabel "testParseFail4" testParseFail4,
-  TestLabel "testParseFail5" testParseFail5,
-  TestLabel "testParseExpr1" testParseSuccess1,
-  TestLabel "testParseExpr2" testParseSuccess2,
-  TestLabel "testParseExpr3" testParseSuccess3,
-  TestLabel "testParseExpr4" testParseSuccess4,
-]
+    TestLabel "testParseFail1" testParseFail1
+  , TestLabel "testParseFail2" testParseFail2
+  , TestLabel "testParseFail3" testParseFail3
+  , TestLabel "testParseFail4" testParseFail4
+  , TestLabel "testParseFail5" testParseFail5
+  , TestLabel "testParseExpr1" testParseSuccess1
+  , TestLabel "testParseExpr2" testParseSuccess2
+  , TestLabel "testParseExpr3" testParseSuccess3
+  , TestLabel "testParseExpr4" testParseSuccess4
+  ]
