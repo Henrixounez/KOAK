@@ -1,5 +1,6 @@
 module KoakPackrat where
 
+import Data.Either
 import Data.Char
 import Debug.Trace
 
@@ -268,7 +269,7 @@ instance Show BinOp where
 {--                   --}
 
 data Result v = Parsed v Derivs
-              | NoParse
+              | NoParse (Maybe String)
 
 data Derivs = Derivs {
   dvStmt                :: Result [Kdefs],
@@ -322,10 +323,19 @@ data Derivs = Derivs {
 
 {--                   --}
 
-eval :: String -> Maybe Stmt
+testFct :: String -> IO (String)
+testFct filePath = do
+  file <- readFile filePath
+  case eval file of
+    (Right file) -> Prelude.return ("FILE OK")
+    (Left strErr) -> case strErr of
+      (Just str) -> Prelude.return ("Error while parsing : " ++ str)
+      Nothing -> Prelude.return ("Error while parsing\n")
+
+eval :: String -> Either (Maybe String) Stmt
 eval s = case dvStmt (parse s) of
-  Parsed v rem -> (Just (Stmt v))
-  NoParse -> Nothing
+  Parsed v rem -> (Right (Stmt v))
+  NoParse str -> Left str
 
 parse :: String -> Derivs
 parse s = d where
@@ -378,7 +388,7 @@ parse s = d where
     binop         = pBinop d
     char          = case s of
                     (c:s') -> Parsed c (parse s')
-                    [] -> NoParse
+                    [] -> NoParse Nothing
 
 {--                   --}
 
@@ -386,11 +396,11 @@ pStmt :: Derivs -> Result [Kdefs]
 pStmt d = case dvWhitespace d of
   Parsed _ d1 -> case dvKdefs d1 of
     Parsed kdef d2 -> case dvChar d2 of
-      NoParse -> Parsed [kdef] d2
+      NoParse str -> Parsed [kdef] d2
       _ -> case dvStmt d2 of
         Parsed stmt d3 -> Parsed (kdef:stmt) d3
-        NoParse -> NoParse
-    _ -> NoParse
+        NoParse str -> NoParse str
+    NoParse str -> NoParse str
 
 
 pKdefs :: Derivs -> Result Kdefs
@@ -399,37 +409,37 @@ pKdefs d = case dvDefStr d of
     Parsed defs d2 -> case dvChar d2 of
       Parsed ';' d3 -> case dvWhitespace d3 of
         Parsed _ d4 -> Parsed defs d4
-      _ -> NoParse
-    _ -> NoParse
+      _ -> NoParse (Just "Syntax error: missing ';'")
+    _ -> NoParse (Just "syntax error: error on 'def' definition")
   _ -> case dvExtern d of
     Parsed extern d1 -> case dvChar d1 of
       Parsed ';' d2 -> case dvWhitespace d2 of
         Parsed _ d3 -> Parsed extern d3
-      _ -> NoParse
+      _ -> NoParse Nothing
     _ -> case dvExpressions d of
       Parsed exprs d1 -> case dvChar d1 of
         Parsed ';' d2 -> case dvWhitespace d2 of
           Parsed _ d3 -> Parsed (KExpressions exprs) d3
-        _ -> NoParse
-      _ -> NoParse
+        _ -> NoParse (Just "syntax error: Error on 'extern' definition")
+      _ -> NoParse Nothing
 
 pDefStr :: Derivs -> Result String
 pDefStr d = case dvChar d of
   Parsed 'd' d1 -> case dvChar d1 of
     Parsed 'e' d2 -> case dvChar d2 of
       Parsed 'f' d3 -> Parsed "def" d3
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pDefs :: Derivs -> Result Kdefs
 pDefs d = case dvPrototype d of
   Parsed proto d1 -> case dvWhitespace d1 of
     Parsed _ d2 -> case dvExpressions d2 of
       Parsed exprs d3 -> Parsed (Defs proto exprs) d3
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pPrototype :: Derivs -> Result Prototype
 pPrototype d = case dvWhitespace d of
@@ -437,22 +447,22 @@ pPrototype d = case dvWhitespace d of
     Parsed proto d2 -> case dvWhitespace d2 of
       Parsed _ d3 -> case dvPrototypeArgs d3 of
         Parsed (args, return) d4 -> Parsed (Prototype proto args return) d4
-        _ -> NoParse
-      _ -> NoParse
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
 
 -- TODO: Weird ?
 pPrototypeStart :: Derivs -> Result String
 pPrototypeStart d = case dvUnaryStr d of
   Parsed un d1 -> case dvDecimalConst d1 of
     Parsed dc d2 -> Parsed ((show un) ++ (show dc)) d2
-    _ -> NoParse
+    _ -> NoParse Nothing
   _ -> case dvBinaryStr d of
     Parsed bn d1 -> case dvDecimalConst d1 of
       Parsed dc d2 -> Parsed ((show bn) ++ (show dc)) d2
-      _ -> NoParse
+      _ -> NoParse Nothing
     _ -> case dvIdentifier d of
       Parsed (Identifier id) d1 -> Parsed id d1
-      _ -> NoParse
+      _ -> NoParse Nothing
 
 pUnaryStr :: Derivs -> Result String
 pUnaryStr d = case dvChar d of
@@ -461,11 +471,11 @@ pUnaryStr d = case dvChar d of
       Parsed 'a' d3 -> case dvChar d3 of
         Parsed 'r' d4 -> case dvChar d4 of
           Parsed 'y' d5 -> Parsed "unary" d5
-          _ -> NoParse
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pBinaryStr :: Derivs -> Result String
 pBinaryStr d = case dvChar d of
@@ -475,12 +485,12 @@ pBinaryStr d = case dvChar d of
         Parsed 'a' d4 -> case dvChar d4 of
           Parsed 'r' d5 -> case dvChar d5 of
             Parsed 'y' d6 -> Parsed "binary" d6
-            _ -> NoParse
-          _ -> NoParse
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse 
+            _ -> NoParse Nothing
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing 
 
 pPrototypeArgs :: Derivs -> Result ([(Primary, Type)], Type)
 pPrototypeArgs d = case dvChar d of
@@ -490,11 +500,11 @@ pPrototypeArgs d = case dvChar d of
         Parsed _ d4 -> case dvChar d4 of
           Parsed ':' d5 -> case dvType d5 of
             Parsed typ d6 -> Parsed (args, typ) d6
-            _ -> NoParse
-          _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+            _ -> NoParse  Nothing
+          _ -> NoParse  Nothing
+      _ -> NoParse  Nothing
+    _ -> NoParse  Nothing
+  _ -> NoParse  Nothing
 
 pArgsList :: Derivs -> Result [(Primary, Type)]
 pArgsList d = case dvIdentifier d of
@@ -503,9 +513,9 @@ pArgsList d = case dvIdentifier d of
       Parsed typ d3 -> case dvArgsList d3 of
         Parsed [] d4 -> Parsed [(id, typ)] d3
         Parsed lst d4 -> Parsed ((id, typ):lst) d4 
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
   _ -> Parsed [] d
 
 pType :: Derivs -> Result Type
@@ -519,25 +529,25 @@ pType d = case dvWhitespace d of
       _ -> case dvVoidStr d1 of
         Parsed _ d2 -> case dvWhitespace d2 of
           Parsed _ d3 -> Parsed Void d3
-        _ -> NoParse
+        _ -> NoParse Nothing
 
 pExtern :: Derivs -> Result Kdefs
 pExtern d = case dvExternStr d of
   Parsed _ d1 -> case dvIdentifier d1 of
     Parsed (Identifier id) d2 -> case dvPrototypeArgs d2 of
       Parsed (args, return) d3 -> Parsed (Extern id args return) d3
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+      _ -> NoParse  Nothing
+    _ -> NoParse  Nothing
+  _ -> NoParse  Nothing
 
 pIntStr :: Derivs -> Result String
 pIntStr d = case dvChar d of
   Parsed 'i' d1 -> case dvChar d1 of
     Parsed 'n' d2 -> case dvChar d2 of
       Parsed 't' d3 -> Parsed "int" d3
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pDoubleStr :: Derivs -> Result String
 pDoubleStr d = case dvChar d of
@@ -547,12 +557,12 @@ pDoubleStr d = case dvChar d of
         Parsed 'b' d4 -> case dvChar d4 of
           Parsed 'l' d5 -> case dvChar d5 of
             Parsed 'e' d6 -> Parsed "double" d6
-            _ -> NoParse
-          _ -> NoParse
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse 
+            _ -> NoParse Nothing
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing 
 
 pVoidStr :: Derivs -> Result String
 pVoidStr d = case dvChar d of
@@ -560,10 +570,10 @@ pVoidStr d = case dvChar d of
     Parsed 'o' d2 -> case dvChar d2 of
       Parsed 'i' d3 -> case dvChar d3 of
         Parsed 'd' d4 -> Parsed "void" d4
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pExternStr :: Derivs -> Result String
 pExternStr d = case dvChar d of
@@ -573,12 +583,12 @@ pExternStr d = case dvChar d of
         Parsed 'e' d4 -> case dvChar d4 of
           Parsed 'r' d5 -> case dvChar d5 of
             Parsed 'n' d6 -> Parsed "extern" d6
-            _ -> NoParse
-          _ -> NoParse
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+            _ -> NoParse Nothing
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pExpressions :: Derivs -> Result Expressions
 pExpressions d = case dvWhitespace d of
@@ -591,8 +601,8 @@ pExpressions d = case dvWhitespace d of
         _ -> case dvExpression d1 of
           Parsed expr d2 -> case dvExprConcat d2 of
             Parsed exprs d3 -> Parsed (Expr (expr:exprs)) d3
-            _ -> NoParse
-          _ -> NoParse
+            _ -> NoParse Nothing
+          _ -> NoParse Nothing
         
 pExprConcat :: Derivs -> Result [Expression]
 pExprConcat d = case dvChar d of
@@ -600,8 +610,8 @@ pExprConcat d = case dvChar d of
     Parsed ex d2 -> case dvExprConcat d2 of
       Parsed [] d3 -> Parsed [ex] d3
       Parsed exs d3 -> Parsed (ex:exs) d3
-      _ -> NoParse
-    _ -> NoParse
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
   _ -> Parsed [] d
 
 pForExpr :: Derivs -> Result Expressions
@@ -616,16 +626,16 @@ pForExpr d = case dvForStr d of
                 Parsed increment d8 -> case dvInStr d8 of
                   Parsed _ d9 -> case dvExpressions d9 of
                     Parsed exprs d10 -> Parsed (ForExpr (id, init) cond increment exprs) d10
-                    _ -> NoParse
-                  _ -> NoParse
-                _ -> NoParse
-              _ -> NoParse
-            _ -> NoParse
-          _ -> NoParse
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+                    _ -> NoParse Nothing
+                  _ -> NoParse Nothing
+                _ -> NoParse Nothing
+              _ -> NoParse Nothing
+            _ -> NoParse Nothing
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pIfExpr :: Derivs -> Result Expressions
 pIfExpr d = case dvIfStr d of
@@ -634,18 +644,18 @@ pIfExpr d = case dvIfStr d of
       Parsed _ d3 -> case dvExpressions d3 of
         Parsed exprs d4 -> case dvElseExpr d4 of
           Parsed elseExprs d5 -> Parsed (IfExpr cond exprs elseExprs) d5
-          _ -> NoParse
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 -- TODO: To Change
 pElseExpr :: Derivs -> Result (Maybe Expressions)
 pElseExpr d = case dvElseStr d of
   Parsed _ d1 -> case dvExpressions d1 of
     Parsed exprs d2 -> Parsed (Just exprs) d2
-    _ -> NoParse
+    _ -> NoParse Nothing
   _ -> Parsed Nothing d
 
 pWhileExpr :: Derivs -> Result Expressions
@@ -654,33 +664,33 @@ pWhileExpr d = case dvWhileStr d of
     Parsed cond d2 -> case dvDoStr d2 of
       Parsed _ d3 -> case dvExpressions d3 of
         Parsed exprs d4 -> Parsed (WhileExpr cond exprs) d4
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pForStr :: Derivs -> Result String
 pForStr d = case dvChar d of
   Parsed 'f' d1 -> case dvChar d1 of
     Parsed 'o' d2 -> case dvChar d2 of
       Parsed 'r' d3 -> Parsed "for" d3
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pInStr :: Derivs -> Result String
 pInStr d = case dvChar d of
   Parsed 'i' d1 -> case dvChar d1 of
     Parsed 'n' d2 -> Parsed "in" d2
-    _ -> NoParse
-  _ -> NoParse
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pIfStr :: Derivs -> Result String
 pIfStr d = case dvChar d of
   Parsed 'i' d1 -> case dvChar d1 of
     Parsed 'f' d2 -> Parsed "if" d2
-    _ -> NoParse
-  _ -> NoParse
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pThenStr :: Derivs -> Result String
 pThenStr d = case dvChar d of
@@ -688,10 +698,10 @@ pThenStr d = case dvChar d of
     Parsed 'h' d2 -> case dvChar d2 of
       Parsed 'e' d3 -> case dvChar d3 of
         Parsed 'n' d4 -> Parsed "then" d4
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse 
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pElseStr :: Derivs -> Result String
 pElseStr d = case dvChar d of
@@ -699,10 +709,10 @@ pElseStr d = case dvChar d of
     Parsed 'l' d2 -> case dvChar d2 of
       Parsed 's' d3 -> case dvChar d3 of
         Parsed 'e' d4 -> Parsed "else" d4
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pWhileStr :: Derivs -> Result String
 pWhileStr d = case dvChar d of
@@ -711,18 +721,18 @@ pWhileStr d = case dvChar d of
       Parsed 'i' d3 -> case dvChar d3 of
         Parsed 'l' d4 -> case dvChar d4 of
           Parsed 'e' d5 -> Parsed "while" d5
-          _ -> NoParse
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pDoStr :: Derivs -> Result String
 pDoStr d = case dvChar d of
   Parsed 'd' d1 -> case dvChar d1 of
     Parsed 'o' d2 -> Parsed "do" d2
-    _ -> NoParse
-  _ -> NoParse
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pExpression :: Derivs -> Result Expression
 pExpression d = case dvWhitespace d of 
@@ -730,8 +740,8 @@ pExpression d = case dvWhitespace d of
     Parsed un d2 -> case dvBinaryOperations d2 of
       Parsed bo d3 -> case dvWhitespace d3 of
         Parsed _ d4 -> Parsed (Expression un bo) d4
-      NoParse -> NoParse
-    _ -> NoParse
+      NoParse str -> NoParse str
+    _ -> NoParse Nothing
 
 pBinaryOperations :: Derivs -> Result [BinaryOperation]
 pBinaryOperations d = case dvWhitespace d of 
@@ -739,12 +749,12 @@ pBinaryOperations d = case dvWhitespace d of
     Parsed bn d2 -> case dvUnary d2 of
       Parsed un d3 -> case dvBinaryOperations d3 of
         Parsed bops d4 -> Parsed ((BinaryOperation bn (UnaryExprUnary un)):bops) d4
-        _ -> NoParse
+        _ -> NoParse Nothing
       _ -> case dvExpression d2 of
         Parsed expr d3 -> case dvBinaryOperations d3 of
           Parsed bops d4 -> Parsed ((BinaryOperation bn (UnaryExprExpression expr)):bops) d4
-          _ -> NoParse
-        _ -> NoParse
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
     _ -> (Parsed [] d1)
 
 pUnary :: Derivs -> Result UnaryPostfix
@@ -752,10 +762,10 @@ pUnary d = case dvWhitespace d of
   Parsed _ d1 -> case dvUnop d1 of
     Parsed unp d2 -> case dvUnary d2 of
       Parsed un d3 -> Parsed (Unary unp un) d3
-      _ -> NoParse
+      _ -> NoParse Nothing
     _ -> case dvPostfix d1 of
       Parsed ps d2 -> Parsed ps d2
-      _ -> NoParse
+      _ -> NoParse Nothing
 
 pPostfix :: Derivs -> Result UnaryPostfix
 pPostfix d = case dvWhitespace d of
@@ -764,8 +774,8 @@ pPostfix d = case dvWhitespace d of
       Parsed _ d3 -> case dvCallExpr d3 of
         Parsed ce d4 -> Parsed (Postfix pr (Just ce)) d4
         _ -> Parsed (Postfix pr Nothing) d3
-      _ -> NoParse
-    _ -> NoParse
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
  
 pCallExpr :: Derivs -> Result [Expression]
 pCallExpr d = case dvChar d of
@@ -773,10 +783,10 @@ pCallExpr d = case dvChar d of
     Parsed ex d2 -> case dvExprList d2 of
       Parsed exs d3 -> case dvChar d3 of
         Parsed ')' d4 -> Parsed (ex:exs) d4
-        _ -> NoParse
-      _ -> NoParse
-    _ -> NoParse
-  _ -> NoParse
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pExprList :: Derivs -> Result [Expression]
 pExprList d = case dvChar d of
@@ -784,10 +794,10 @@ pExprList d = case dvChar d of
     Parsed ex d2 -> case dvExprList d2 of
       Parsed [] d3 -> Parsed [ex] d3
       Parsed exs d3 -> Parsed (ex:exs) d3
-      _ -> NoParse
-    _ -> NoParse
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing
   Parsed _ d1 -> Parsed [] d
-  _ -> NoParse
+  _ -> NoParse Nothing
 
 pPrimary :: Derivs -> Result Primary
 pPrimary d = case dvIdentifier d of
@@ -798,9 +808,9 @@ pPrimary d = case dvIdentifier d of
       Parsed '(' d1 -> case dvExpression d1 of
         Parsed expr d2 -> case dvChar d2 of
           Parsed ')' d3 -> Parsed (PrimaryExpressions expr) d3
-          _ -> NoParse
-        _ -> NoParse
-      _ -> NoParse
+          _ -> NoParse Nothing
+        _ -> NoParse Nothing
+      _ -> NoParse Nothing
 
 pIdentifier :: Derivs -> Result Primary
 pIdentifier d = case dvWhitespace d of
@@ -809,9 +819,9 @@ pIdentifier d = case dvWhitespace d of
       True -> case dvIdentifierContent d2 of
         Parsed s d3 -> case dvWhitespace d3 of
           Parsed _ d4 -> Parsed (Identifier (c:s)) d4
-        _ -> NoParse
-      False -> NoParse
-    _ -> NoParse
+        _ -> NoParse Nothing
+      False -> NoParse Nothing
+    _ -> NoParse Nothing
 
 pIdentifierContent :: Derivs -> Result String
 pIdentifierContent d = case dvChar d of
@@ -819,24 +829,24 @@ pIdentifierContent d = case dvChar d of
     True -> case dvIdentifierContent d1 of
       Parsed [] d2 -> Parsed [c] d1
       Parsed s d2 -> Parsed (c:s) d2
-      _ -> NoParse
+      _ -> NoParse Nothing
     False -> Parsed [] d
-  _ -> NoParse
+  _ -> NoParse Nothing
 
 pDot :: Derivs -> Result String
 pDot d = case dvChar d of
   Parsed '.' d1 -> case dvChar d1 of
-    Parsed '.' _ -> NoParse
+    Parsed '.' _ -> NoParse Nothing
     Parsed c d2 -> Parsed "." d2
-    _ -> NoParse
-  _ -> NoParse
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pDecimalConst :: Derivs -> Result Int
 pDecimalConst d = case pDecimalConstContent d of 
   Parsed s d1 -> case length s > 0 of
     True -> Parsed (read s :: Int) d1
-    False -> NoParse
-  _ -> NoParse
+    False -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pDecimalConstContent :: Derivs -> Result String
 pDecimalConstContent d = case dvChar d of
@@ -844,9 +854,9 @@ pDecimalConstContent d = case dvChar d of
     True -> case dvDecimalConstContent d1 of
       Parsed [] d2 -> Parsed [c] d1
       Parsed s d2 -> Parsed (c:s) d2
-      _ -> NoParse
+      _ -> NoParse Nothing
     False -> Parsed [] d
-  _ -> NoParse
+  _ -> NoParse Nothing
 
 pDoubleConst :: Derivs -> Result Double
 pDoubleConst d = case dvDecimalConst d of
@@ -855,12 +865,12 @@ pDoubleConst d = case dvDecimalConst d of
       Parsed s d3 -> case length s > 0 of
         True -> Parsed ((fromIntegral dc :: Double) + ((read s :: Double) / (10^(length s)))) d3
         False -> Parsed (fromIntegral dc :: Double) d3
-    _ -> NoParse
+    _ -> NoParse Nothing
   _ -> case dvDot d of
     Parsed _ d1 -> case dvDecimalConst d1 of
       Parsed dc d2 -> Parsed ((fromIntegral dc :: Double) / (10^(length (show dc)))) d2
-      _ -> NoParse
-    _ -> NoParse
+      _ -> NoParse Nothing
+    _ -> NoParse Nothing 
 
 -- TODO: Change ?
 pLiteral :: Derivs -> Result Literal
@@ -868,7 +878,7 @@ pLiteral d = case dvDoubleConst d of
   Parsed dc d1 -> Parsed (LiteralFloat dc) d1
   _ -> case dvDecimalConst d of 
     Parsed dc d1 -> Parsed (LiteralInt dc) d1
-    _ -> NoParse
+    _ -> NoParse Nothing
 
 isWhiteSpace :: Char -> Bool
 isWhiteSpace x = elem x [' ', '\t', '\r', '\n']
@@ -891,15 +901,15 @@ pBinop d = case dvChar d of
   Parsed '>' d1 -> Parsed GreaterThan d1
   Parsed '=' d1 -> case dvChar d1 of
     Parsed '=' d2 -> Parsed Equal d2
-    NoParse -> NoParse
+    NoParse str -> NoParse str
     _ -> Parsed Assignment d1
   Parsed '!' d1 -> case dvChar d1 of
     Parsed '=' d2 -> Parsed NotEqual d2
-    _ -> NoParse
-  _ -> NoParse
+    _ -> NoParse Nothing
+  _ -> NoParse Nothing
 
 pUnop :: Derivs -> Result UnOp
 pUnop d = case dvChar d of
   Parsed '!' d1 -> Parsed Not d1
   Parsed '-' d1 -> Parsed Minus d1
-  _ -> NoParse
+  _ -> NoParse Nothing

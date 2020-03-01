@@ -16,5 +16,6 @@ main = do
         (Just name) -> do
             file <- readFile name
             case eval file of
-                (Just koakAST) -> entrypoint koakAST (name, flag)
-                _ -> handleError "Error while parsing.\n"
+                (Right koakAST) -> entrypoint koakAST (name, flag)
+                (Left (Just s)) -> handleError s
+                (Left Nothing) -> handleError "Error while parsing.\n"

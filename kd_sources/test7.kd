@@ -2,4 +2,4 @@ extern putchard(x: double): double;
 
 def test(x: double): double x + 10;
 
-putchard(test(10));
+test(10);
