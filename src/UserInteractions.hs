@@ -6,13 +6,12 @@ import System.Exit
 import qualified Data.Text as T
 
 helper :: IO ()
-helper = putStrLn 
-"Usage: ./koak (flag)+ path_to_kaleidoscope source file\n\
+helper = putStrLn "Usage: ./koak (flag)+ path_to_kaleidoscope source file\n\
 \FLAGS (only one at a time):\n\
 \   -h | --help : display help\n\
 \   -O | --so : Generate .so file\n\
 \   -I | --ir : Generates .ll file\n\
-\   -J | --jit : Launch the JIT repl\n
+\   -J | --jit : Launch the JIT repl\n\
 \If no flags are given, koak will try to compile the input into a .out file.\n\n"
 
 handleError :: String -> IO a

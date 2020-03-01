@@ -439,12 +439,17 @@ cgen (PC.ExprFor (ivar, start) cond step body) = do
   setBlock forExit
   return zero
 
-codegen :: AST.Module -> [PC.Expr] -> IO AST.Module
-codegen mod fns = withContext $ \context ->
-  withModuleFromAST context newast $ \m -> do
-    llstr <- moduleLLVMAssembly m
-    putStrLn (UTF8.toString llstr)
-    return newast
+codegen :: AST.Module -> [PC.Expr] -> AST.Module
+codegen mod fns = newast
   where
     modn = mapM codegenTop fns
     newast = runLLVM mod modn
+-- codegen :: AST.Module -> [PC.Expr] -> IO AST.Module
+-- codegen mod fns = withContext $ \context ->
+--   withModuleFromAST context newast $ \m -> do
+--     llstr <- moduleLLVMAssembly m
+--     putStrLn (UTF8.toString llstr)
+--     return newast
+--   where
+--     modn = mapM codegenTop fns
+--     newast = runLLVM mod modn

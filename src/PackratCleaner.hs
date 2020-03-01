@@ -89,5 +89,8 @@ cleanPackrat (KP.Stmt kdefs) = res
   where
     allExpr = getKdefs kdefs
     globalExpr = filter filterGlobalExpr allExpr
-    mainExpr = ExprFunction "main" [] (filter (\a -> not (filterGlobalExpr a)) allExpr)
-    res = globalExpr ++ [mainExpr]
+    mainExprs = filter (\a -> not (filterGlobalExpr a)) allExpr
+    mainExpr = case length mainExprs of
+      0 -> []
+      _ -> [ExprFunction "main" [] mainExprs]
+    res = globalExpr ++ mainExpr
