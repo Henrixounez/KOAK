@@ -32,7 +32,7 @@ expressions         := _* (for_expr
                      | expression exprConcat)
 exprConcat          := (':' expression)*
 for_expr            := forStr identifier '=' expression ','
-                       identifier '<' expression ','
+                       expression ','
                        expression inStr expressions
 if_expr             := ifStr expression thenStr expressions else_expr?
 else_expr           := elseStr expressions
@@ -81,7 +81,7 @@ test = "def test(x : double):double x + 2.0;"
 -- test = "def test(a : double): double if a == 2 then 2 else 4;"
 
 data Type = Int | Double | Void
-data UnOp = Not | Minus
+data UnOp = Not | Minus deriving (Eq, Ord)
 data BinOp = Multiplication | Division | Addition | Substraction | LessThan | GreaterThan | Equal | NotEqual | Assignment deriving (Eq, Ord)
 
 data Stmt = Stmt {
@@ -105,7 +105,7 @@ data Prototype = Prototype {
 
 data Expressions = ForExpr {
   init            :: (Primary, Expression),
-  condition       :: (Primary, Expression),
+  condition       :: Expression,
   increment       :: Expression,
   expressions     :: Expressions
 } | IfExpr {
@@ -620,16 +620,12 @@ pForExpr d = case dvForStr d of
     Parsed id d2 -> case dvChar d2 of
       Parsed '=' d3 -> case dvExpression d3 of
         Parsed init d4 -> case dvChar d4 of
-          Parsed ',' d5 -> case dvIdentifier d5 of
-            Parsed id2 d6 -> case dvChar d6 of
-              Parsed '<' d7 -> case dvExpression d7 of
-                Parsed cond d8 -> case dvChar d8 of
-                  Parsed ',' d9 -> case dvExpression d9 of
-                    Parsed increment d10 -> case dvInStr d10 of
-                      Parsed _ d11 -> case dvExpressions d11 of
-                        Parsed exprs d12 -> Parsed (ForExpr (id, init) (id2, cond) increment exprs) d12
-                        _ -> NoParse Nothing
-                      _ -> NoParse Nothing
+          Parsed ',' d5 -> case dvExpression d5 of
+            Parsed cond d6 -> case dvChar d6 of
+              Parsed ',' d7 -> case dvExpression d7 of
+                Parsed increment d8 -> case dvInStr d8 of
+                  Parsed _ d9 -> case dvExpressions d9 of
+                    Parsed exprs d10 -> Parsed (ForExpr (id, init) cond increment exprs) d10
                     _ -> NoParse Nothing
                   _ -> NoParse Nothing
                 _ -> NoParse Nothing

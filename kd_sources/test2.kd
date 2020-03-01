@@ -1,1 +1,5 @@
-def add(a: double b: double) : double a + b;
+extern putchard(x: double): double;
+
+def test(x: double): double if x == 2.0 then 27.0;
+y = 2.0;
+putchard(test (y + 0.0));

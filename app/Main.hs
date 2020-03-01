@@ -4,26 +4,18 @@ module Main where
 
 import Lib
 
-import qualified LLVM.AST as AST
-import Debug.Trace
-
-import Codegen
 import KoakPackrat
-import PackratCleaner
 import UserInteractions
-
-initModule :: AST.Module
-initModule = emptyModule "Koak Compiler"
+import Entrypoint
 
 main :: IO ()
 main = do
-    (fileName, trueFlag) <- handleArgs
-    file <- readFile fileName
-    case eval file of
-        (Just file) -> case trueFlag of
-            _ -> do
-              codegen initModule (trace (show $ cleanPackrat file) (cleanPackrat file))
-              Prelude.return ()
-            -- False -> toLLVM $ genModule file
-            -- True -> toLLVM $ genModule file
-        _ -> handleError "Error while parsing.\n"
+    (fileName, flag) <- handleArgs
+    case fileName of
+        Nothing -> handleError "You must provide a .kd file"
+        (Just name) -> do
+            file <- readFile name
+            case eval file of
+                (Right koakAST) -> entrypoint koakAST (name, flag)
+                (Left (Just s)) -> handleError s
+                (Left Nothing) -> handleError "Error while parsing.\n"

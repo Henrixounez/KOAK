@@ -5,7 +5,7 @@ import qualified KoakPackrat as KP
 type Name = String
 
 data Expr = 
-    ExprFor (Name, Expr) (Name, Expr) Expr [Expr]
+    ExprFor (Name, Expr) Expr Expr [Expr]
   | ExprIf Expr [Expr] [Expr]
   | ExprWhile Expr [Expr]
   | ExprFloat Double
@@ -24,6 +24,7 @@ getPrimary (KP.PrimaryLiteral (KP.LiteralFloat d)) = ExprFloat d
 getPrimary (KP.PrimaryExpressions exprs) = getExpression exprs
 
 getUnaryPostfix :: KP.UnaryPostfix -> Expr
+getUnaryPostfix (KP.Unary KP.Not unary) = ExprIf (ExprBinaryOperation KP.NotEqual (ExprFloat 0) (getUnaryPostfix unary)) [ExprFloat 0] [ExprFloat 1]  
 getUnaryPostfix (KP.Unary op unary) = ExprUnaryOperation op (getUnaryPostfix unary)
 getUnaryPostfix (KP.Postfix primary Nothing) = getPrimary primary
 getUnaryPostfix (KP.Postfix (KP.Identifier name) (Just callExpr)) = ExprCall name (map getExpression callExpr) 
@@ -47,7 +48,7 @@ getExpressions :: KP.Expressions -> [Expr]
 getExpressions (KP.ForExpr init condition increment exprs) = [ExprFor forInit cond incr expr]
   where
     forInit = (\ ((KP.Identifier s), expr) -> (s, getExpression expr)) init
-    cond    = (\ ((KP.Identifier s), expr) -> (s, getExpression expr)) condition
+    cond    = getExpression condition
     incr    = getExpression increment
     expr    = getExpressions exprs
 getExpressions (KP.IfExpr condIf exprs elseExprs) = [ExprIf cond expr elseExpr]
@@ -79,5 +80,18 @@ getKdefs ((KP.Defs proto exprs):xs) = (getDefs proto exprs):(getKdefs xs)
 getKdefs ((KP.Extern name args return):xs) = (getExtern name args return):(getKdefs xs)
 getKdefs ((KP.KExpressions exprs):xs) = (getExpressions exprs) ++ (getKdefs xs)
 
+filterGlobalExpr :: Expr -> Bool
+filterGlobalExpr (ExprFunction _ _ _) = True
+filterGlobalExpr (ExprExtern _ _) = True
+filterGlobalExpr _ = False
+
 cleanPackrat :: KP.Stmt -> [Expr]
-cleanPackrat (KP.Stmt kdefs) = getKdefs kdefs
+cleanPackrat (KP.Stmt kdefs) = res
+  where
+    allExpr = getKdefs kdefs
+    globalExpr = filter filterGlobalExpr allExpr
+    mainExprs = filter (\a -> not (filterGlobalExpr a)) allExpr
+    mainExpr = case length mainExprs of
+      0 -> []
+      _ -> [ExprFunction "main" [] mainExprs]
+    res = globalExpr ++ mainExpr
