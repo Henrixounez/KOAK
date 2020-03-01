@@ -7,12 +7,34 @@ import Codegen
 import KoakPackrat
 import PackratCleaner
 
+import Foreign.Ptr ( FunPtr, castFunPtr )
+
 import qualified LLVM.Target as T
 import qualified LLVM.Relocation as Reloc
 import qualified LLVM.CodeModel as CodeModel
 import qualified LLVM.CodeGenOpt as CodeGenOpt
+import qualified LLVM.ExecutionEngine as EE
 import LLVM.Context
 import LLVM.Module
+import LLVM.PassManager
+
+import qualified Data.ByteString.UTF8 as UTF8
+
+foreign import ccall "dynamic" haskFun :: FunPtr (IO Double) -> (IO Double)
+
+run :: FunPtr a -> IO Double
+run fn = haskFun (castFunPtr fn :: FunPtr (IO Double))
+
+jit :: Context -> (EE.MCJIT -> IO a) -> IO a
+jit c = EE.withMCJIT c optlevel model ptrelim fastins
+  where
+    optlevel = Just 0  -- optimization level
+    model    = Nothing -- code model ( Default )
+    ptrelim  = Nothing -- frame pointer elimination
+    fastins  = Nothing -- fast instruction selection
+
+passes :: PassSetSpec
+passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
 
 generateName :: String -> String -> String
 generateName srcName ext = name ++ ext
@@ -37,7 +59,20 @@ toAST :: Stmt -> AST.Module
 toAST stmt = codegen initModule (cleanPackrat stmt)
 
 toJIT :: AST.Module -> String -> IO ()
-toJIT ast name = Prelude.return ()
+toJIT ast name = withContext $ \ctx ->
+  jit ctx $ \execEngine -> withModuleFromAST ctx ast $ \m ->
+    withPassManager passes $ \pm -> do
+      optmod <- moduleAST m
+      s <- moduleLLVMAssembly m
+      EE.withModuleInEngine execEngine m $ \ee -> do
+        mainfn <- EE.getFunction ee (AST.Name "main")
+        case mainfn of
+          Just fn -> do
+            res <- run fn
+            putStrLn $ show res
+          Nothing -> Prelude.return ()
+      Prelude.return ()
+
 
 toExe :: AST.Module -> String -> IO ()
 toExe ast name = Prelude.return ()
